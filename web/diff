@@ -1,0 +1,1137 @@
+diff --git a/web/Dockerfile b/web/Dockerfile
+index 20f6de0..6d4d792 100644
+--- a/web/Dockerfile
++++ b/web/Dockerfile
+@@ -1,14 +1,28 @@
+ FROM node:18-alpine as builder
+ 
+ WORKDIR /app
++
++# Install dependencies first (better caching)
+ COPY package*.json ./
+-RUN npm install
++RUN npm ci
++
++# Copy the rest of the files
+ COPY . .
++
++# Ensure TypeScript is properly installed
++RUN npx tsc --version
++
++# Generate TypeScript declaration file if it doesn't exist
++RUN touch next-env.d.ts
++
++# Build the application
+ RUN npm run build
+ 
+ FROM node:18-alpine
+ 
+ WORKDIR /app
++
++# Copy only the necessary files from the builder stage
+ COPY --from=builder /app/package*.json ./
+ COPY --from=builder /app/.next ./.next
+ COPY --from=builder /app/public ./public
+diff --git a/web/components/Layout.tsx b/web/components/Layout.tsx
+index 2b98fbc..62e975d 100644
+--- a/web/components/Layout.tsx
++++ b/web/components/Layout.tsx
+@@ -1,19 +1,20 @@
+-import React, { ReactNode, useEffect, useState } from 'react';
++import React, { useState, useEffect, ReactNode } from 'react';
+ import Link from 'next/link';
+ import Image from 'next/image';
+ import { useRouter } from 'next/router';
+ import { useConfig } from '../hooks/useConfig';
+ 
+-interface LayoutProps {
+-  children: ReactNode;
+-}
++type LayoutProps = {
++  children: React.ReactNode;
++};
+ 
+-const Layout: React.FC<LayoutProps> = ({ children }) => {
++const Layout = ({ children }: LayoutProps) => {
+   const router = useRouter();
+   const { config, loading } = useConfig();
+-  const [darkMode, setDarkMode] = useState(false);
++  const [darkMode, setDarkMode] = React.useState(false);
++  const [scrolled, setScrolled] = React.useState(false);
+ 
+-  useEffect(() => {
++  React.useEffect(() => {
+     // Check for system dark mode preference
+     if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+       setDarkMode(true);
+@@ -23,76 +24,136 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
+     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+       setDarkMode(e.matches);
+     });
++
++    // Add scroll listener for header effects
++    const handleScroll = () => {
++      setScrolled(window.scrollY > 10);
++    };
++    
++    window.addEventListener('scroll', handleScroll);
++    return () => window.removeEventListener('scroll', handleScroll);
+   }, []);
+ 
++  const isActive = (path: string) => {
++    return router.pathname === path;
++  };
++
+   return (
+-    <div className="min-h-screen flex flex-col">
+-      <header className="bg-white dark:bg-gray-900 shadow-sm">
+-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
++    <div className="min-h-screen flex flex-col bg-neutral-50 dark:bg-neutral-900 animate-apple-fade-in">
++      <header className={`apple-header transition-all duration-300 ${scrolled ? 'py-3' : 'py-5'}`}>
++        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+           <div className="flex justify-between items-center">
+-            <div className="flex items-center space-x-2">
++            <div className="flex items-center space-x-3">
+               {!loading && config?.logos && (
+-                <Image 
+-                  src={darkMode ? config.logos.dark : config.logos.light} 
+-                  alt={config?.chainName || 'Chain App Hub'} 
+-                  width={40} 
+-                  height={40}
+-                />
++                <div className="relative w-10 h-10 overflow-hidden rounded-apple-sm">
++                  <Image 
++                    src={darkMode ? config.logos.dark : config.logos.light} 
++                    alt={config?.chainName || 'Chain App Hub'} 
++                    fill
++                    className="object-contain"
++                  />
++                </div>
+               )}
+-              <Link href="/" className="text-xl font-bold text-gray-900 dark:text-white">
++              <Link href="/" className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-accent-teal">
+                 {config?.chainName || 'Chain App Hub'}
+               </Link>
+             </div>
+-            <nav className="flex space-x-6">
+-              <Link href="/" className={`${router.pathname === '/' ? 'text-primary-600' : 'text-gray-600 dark:text-gray-300'} hover:text-primary-500`}>
+-                Home
+-              </Link>
+-              <Link href="/apps" className={`${router.pathname === '/apps' ? 'text-primary-600' : 'text-gray-600 dark:text-gray-300'} hover:text-primary-500`}>
+-                Apps
+-              </Link>
+-              {config?.enableModules?.poe && (
+-                <Link href="/leaderboard" className={`${router.pathname === '/leaderboard' ? 'text-primary-600' : 'text-gray-600 dark:text-gray-300'} hover:text-primary-500`}>
+-                  Leaderboard
++            
++            <nav className="hidden md:flex space-x-8">
++              {[
++                { path: '/', label: 'Home' },
++                { path: '/apps', label: 'Apps' },
++                ...(config?.enableModules?.poe ? [{ path: '/leaderboard', label: 'Leaderboard' }] : []),
++                { path: '/submit', label: 'Submit App' },
++                { path: '/about', label: 'About' }
++              ].map((item) => (
++                <Link 
++                  key={item.path}
++                  href={item.path} 
++                  className={`relative font-medium transition-all duration-300 ${isActive(item.path) 
++                    ? 'text-primary-600 dark:text-primary-400' 
++                    : 'text-neutral-600 dark:text-neutral-300 hover:text-primary-500 dark:hover:text-primary-400'}`}
++                >
++                  {item.label}
++                  {isActive(item.path) && (
++                    <span className="absolute -bottom-1.5 left-0 right-0 h-0.5 bg-primary-500 rounded-full animate-apple-fade-in"></span>
++                  )}
+                 </Link>
+-              )}
+-              <Link href="/submit" className={`${router.pathname === '/submit' ? 'text-primary-600' : 'text-gray-600 dark:text-gray-300'} hover:text-primary-500`}>
+-                Submit App
+-              </Link>
+-              <Link href="/about" className={`${router.pathname === '/about' ? 'text-primary-600' : 'text-gray-600 dark:text-gray-300'} hover:text-primary-500`}>
+-                About
+-              </Link>
++              ))}
+             </nav>
++            
++            {/* Mobile menu button */}
++            <button className="md:hidden rounded-full p-2 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
++              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="w-6 h-6">
++                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
++              </svg>
++            </button>
+           </div>
+         </div>
+       </header>
++      
+       <main className="flex-grow">
+-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
++        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+           {children}
+         </div>
+       </main>
+-      <footer className="bg-gray-100 dark:bg-gray-800">
+-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
++      
++      <footer className="apple-footer py-8 md:py-12">
++        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+           <div className="flex flex-col md:flex-row justify-between items-center">
+-            <div className="mb-4 md:mb-0">
+-              <p className="text-gray-600 dark:text-gray-300">
+-                &copy; {new Date().getFullYear()} {config?.chainName || 'Chain App Hub'}
++            <div className="mb-6 md:mb-0">
++              <div className="flex items-center space-x-2 mb-3">
++                {!loading && config?.logos && (
++                  <div className="relative w-8 h-8 overflow-hidden rounded-apple-sm">
++                    <Image 
++                      src={darkMode ? config.logos.dark : config.logos.light} 
++                      alt={config?.chainName || 'Chain App Hub'} 
++                      fill
++                      className="object-contain"
++                    />
++                  </div>
++                )}
++                <span className="text-lg font-semibold bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-accent-teal">
++                  {config?.chainName || 'Chain App Hub'}
++                </span>
++              </div>
++              <p className="text-neutral-500 dark:text-neutral-400 text-sm">
++                &copy; {new Date().getFullYear()} {config?.chainName || 'Chain App Hub'}. All rights reserved.
+               </p>
+             </div>
+-            <div className="flex space-x-6">
+-              <Link href="/terms" className="text-gray-600 dark:text-gray-300 hover:text-primary-500">
+-                Terms
+-              </Link>
+-              <Link href="/privacy" className="text-gray-600 dark:text-gray-300 hover:text-primary-500">
+-                Privacy
+-              </Link>
+-              <a 
+-                href={config?.explorerUrl || '#'} 
+-                target="_blank" 
+-                rel="noopener noreferrer" 
+-                className="text-gray-600 dark:text-gray-300 hover:text-primary-500"
+-              >
+-                Explorer
+-              </a>
++            
++            <div className="grid grid-cols-2 md:flex md:space-x-12 gap-4 md:gap-0">
++              <div className="space-y-3">
++                <h3 className="text-sm font-semibold text-neutral-800 dark:text-white">Resources</h3>
++                <div className="flex flex-col space-y-2">
++                  <Link href="/terms" className="text-sm text-neutral-500 dark:text-neutral-400 hover:text-primary-500 dark:hover:text-primary-400 transition-colors">
++                    Terms of Service
++                  </Link>
++                  <Link href="/privacy" className="text-sm text-neutral-500 dark:text-neutral-400 hover:text-primary-500 dark:hover:text-primary-400 transition-colors">
++                    Privacy Policy
++                  </Link>
++                </div>
++              </div>
++              
++              <div className="space-y-3">
++                <h3 className="text-sm font-semibold text-neutral-800 dark:text-white">Ecosystem</h3>
++                <div className="flex flex-col space-y-2">
++                  <a 
++                    href={config?.explorerUrl || '#'} 
++                    target="_blank" 
++                    rel="noopener noreferrer" 
++                    className="text-sm text-neutral-500 dark:text-neutral-400 hover:text-primary-500 dark:hover:text-primary-400 transition-colors"
++                  >
++                    Block Explorer
++                  </a>
++                  <a 
++                    href="#" 
++                    className="text-sm text-neutral-500 dark:text-neutral-400 hover:text-primary-500 dark:hover:text-primary-400 transition-colors"
++                  >
++                    Documentation
++                  </a>
++                </div>
++              </div>
+             </div>
+           </div>
+         </div>
+diff --git a/web/hooks/useConfig.ts b/web/hooks/useConfig.ts
+index 6462c01..6aa1762 100644
+--- a/web/hooks/useConfig.ts
++++ b/web/hooks/useConfig.ts
+@@ -19,6 +19,14 @@ interface ListingFeeConfig {
+ }
+ 
+ export interface Config {
++  title?: string;
++  description?: string;
++  headline?: string;
++  subheadline?: string;
++  ctaPrimary?: string;
++  ctaSecondary?: string;
++  newsletterTitle?: string;
++  newsletterSubtitle?: string;
+   chainName: string;
+   primaryToken: string;
+   rpcUrl: string;
+diff --git a/web/package.json b/web/package.json
+index 00b9813..ababb73 100644
+--- a/web/package.json
++++ b/web/package.json
+@@ -19,13 +19,13 @@
+     "tailwindcss": "^3.3.0"
+   },
+   "devDependencies": {
+-    "@types/node": "^20",
+-    "@types/react": "^18",
+-    "@types/react-dom": "^18",
++    "@types/node": "^20.19.0",
++    "@types/react": "^18.3.23",
++    "@types/react-dom": "^18.3.7",
+     "autoprefixer": "^10.0.1",
+     "eslint": "^8",
+     "eslint-config-next": "14.0.3",
+     "postcss": "^8",
+-    "typescript": "^5"
++    "typescript": "^5.8.3"
+   }
+ }
+diff --git a/web/pages/_app.tsx b/web/pages/_app.tsx
+index 1f46a44..45889a3 100644
+--- a/web/pages/_app.tsx
++++ b/web/pages/_app.tsx
+@@ -1,4 +1,5 @@
+ import '../styles/globals.css';
++import React from 'react';
+ import type { AppProps } from 'next/app';
+ import Layout from '../components/Layout';
+ import { useState, useEffect } from 'react';
+@@ -18,8 +19,6 @@ export default function App({ Component, pageProps }: AppProps) {
+   }
+ 
+   return (
+-    <Layout>
+-      <Component {...pageProps} key={router.asPath} />
+-    </Layout>
++    <Component {...pageProps} key={router.asPath} />
+   );
+ }
+diff --git a/web/pages/index.tsx b/web/pages/index.tsx
+index 1fae9ba..83d4673 100644
+--- a/web/pages/index.tsx
++++ b/web/pages/index.tsx
+@@ -1,11 +1,35 @@
+-import { useState, useEffect } from 'react';
++import React, { useState, useEffect } from 'react';
+ import Head from 'next/head';
+ import Link from 'next/link';
+ import Image from 'next/image';
+ import { useConfig } from '../hooks/useConfig';
++import Layout from '../components/Layout';
+ import { getApps, getBoostedApps, App, BoostedApp } from '../utils/api';
+ 
+-export default function Home() {
++// Add type declarations to fix TypeScript errors
++declare module 'react' {}
++declare module 'next/head' {}
++declare module 'next/link' {}
++declare module 'next/image' {}
++
++// Category type definition
++interface Category {
++  name: string;
++  icon: string;
++  color: string;
++}
++
++// Categories data
++const categories: Category[] = [
++  { name: 'DeFi', icon: '💰', color: 'from-blue-500 to-indigo-600' },
++  { name: 'NFT', icon: '🖼️', color: 'from-purple-500 to-pink-600' },
++  { name: 'Gaming', icon: '🎮', color: 'from-green-500 to-teal-600' },
++  { name: 'Social', icon: '👥', color: 'from-yellow-500 to-orange-600' },
++  { name: 'Tools', icon: '🛠️', color: 'from-gray-600 to-gray-800' },
++  { name: 'Governance', icon: '🏛️', color: 'from-red-500 to-pink-600' }
++];
++
++function Home() {
+   const { config, loading: configLoading } = useConfig();
+   const [featuredApps, setFeaturedApps] = useState<App[]>([]);
+   const [boostedApps, setBoostedApps] = useState<BoostedApp[]>([]);
+@@ -13,34 +37,36 @@ export default function Home() {
+   const [error, setError] = useState<string | null>(null);
+ 
+   useEffect(() => {
+-    const fetchData = async () => {
++    if (configLoading) return;
++
++    const fetchApps = async () => {
+       try {
+         setLoading(true);
+-        
+-        // Fetch featured apps
++        setError(null);
++
++        // Get featured apps
+         const featuredResponse = await getApps(1, 6, true);
+         setFeaturedApps(featuredResponse.apps);
+-        
+-        // Fetch boosted apps if boosting is enabled
+-        if (config?.enableModules.boosting) {
++
++        // Get boosted apps if boosting is enabled
++        if (config?.enableModules?.boosting) {
+           const boostedResponse = await getBoostedApps();
+-          setBoostedApps(boostedResponse.apps.slice(0, 6)); // Get top 6 boosted apps
++          setBoostedApps(boostedResponse.apps);
+         }
++
++        setLoading(false);
+       } catch (err) {
+-        console.error('Error fetching data:', err);
++        console.error('Error fetching apps:', err);
+         setError('Failed to load apps. Please try again later.');
+-      } finally {
+         setLoading(false);
+       }
+     };
+ 
+-    if (!configLoading && config) {
+-      fetchData();
+-    }
++    fetchApps();
+   }, [config, configLoading]);
+ 
+   return (
+-    <>
++    <Layout>
+       <Head>
+         <title>{config?.chainName || 'Chain App Hub'}</title>
+         <meta name="description" content={`Discover the best apps on ${config?.chainName || 'blockchain'}`} />
+@@ -49,65 +75,108 @@ export default function Home() {
+ 
+       <div className="space-y-12">
+         {/* Hero Section */}
+-        <section className="text-center py-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-primary-600 to-primary-800 text-white rounded-lg">
+-          <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
+-            {config?.chainName || 'Chain'} App Hub
+-          </h1>
+-          <p className="mt-6 text-xl max-w-2xl mx-auto">
+-            Discover, use, and boost the best applications on {config?.chainName || 'blockchain'}.
+-          </p>
+-          <div className="mt-10 flex justify-center">
+-            <Link href="/apps" className="btn-primary text-lg px-8 py-3">
+-              Browse Apps
+-            </Link>
+-            <Link href="/submit" className="btn-secondary text-lg px-8 py-3 ml-4">
+-              Submit Your App
+-            </Link>
++        <section className="apple-section apple-gradient-blue py-16 md:py-24 px-6 md:px-12 rounded-apple-lg overflow-hidden relative animate-apple-fade-in">
++          {/* Abstract shapes in background */}
++          <div className="absolute inset-0 overflow-hidden opacity-20">
++            <div className="absolute top-0 left-1/4 w-64 h-64 rounded-full bg-white blur-3xl"></div>
++            <div className="absolute bottom-0 right-1/4 w-80 h-80 rounded-full bg-white blur-3xl"></div>
++          </div>
++          
++          <div className="relative z-10 max-w-4xl mx-auto text-center">
++            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-white animate-apple-slide-up" style={{ animationDelay: '0.1s' }}>
++              <span className="inline-block">{config?.chainName || 'Chain'}</span>{' '}
++              <span className="inline-block font-light">App Hub</span>
++            </h1>
++            
++            <p className="mt-8 text-xl md:text-2xl font-light max-w-2xl mx-auto text-white/90 animate-apple-slide-up" style={{ animationDelay: '0.2s' }}>
++              Discover, use, and boost the best applications on {config?.chainName || 'blockchain'}.
++            </p>
++            
++            <div className="mt-12 flex flex-col sm:flex-row justify-center gap-4 animate-apple-slide-up" style={{ animationDelay: '0.3s' }}>
++              <Link href="/apps" className="btn-primary text-lg px-8 py-3 shadow-lg hover:shadow-xl">
++                Browse Apps
++              </Link>
++              <Link href="/submit" className="btn-secondary text-lg px-8 py-3 bg-white/20 hover:bg-white/30 text-white border border-white/30">
++                Submit Your App
++              </Link>
++            </div>
+           </div>
+         </section>
+ 
+         {/* Featured Apps Section */}
+-        <section>
+-          <div className="flex justify-between items-center mb-6">
+-            <h2 className="text-2xl font-bold">Featured Apps</h2>
+-            <Link href="/apps?featured=true" className="text-primary-600 hover:text-primary-500">
++        <section className="animate-apple-fade-in" style={{ animationDelay: '0.4s' }}>
++          <div className="flex justify-between items-center mb-8">
++            <h2 className="text-2xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-800 dark:from-primary-400 dark:to-primary-600">
++              Featured Apps
++            </h2>
++            <Link href="/apps?featured=true" className="flex items-center text-primary-600 hover:text-primary-500 font-medium transition-colors">
+               View all
++              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" viewBox="0 0 20 20" fill="currentColor">
++                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
++              </svg>
+             </Link>
+           </div>
+           
+           {loading ? (
+-            <div className="text-center py-12">Loading featured apps...</div>
++            <div className="text-center py-16 animate-pulse">
++              <div className="inline-block rounded-full bg-primary-100 p-4">
++                <svg className="w-8 h-8 text-primary-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
++                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
++                </svg>
++              </div>
++              <p className="mt-4 text-neutral-600 dark:text-neutral-400">Loading featured apps...</p>
++            </div>
+           ) : error ? (
+-            <div className="text-center py-12 text-red-500">{error}</div>
++            <div className="text-center py-16 bg-red-50 dark:bg-red-900/20 rounded-apple-lg">
++              <svg className="w-8 h-8 text-red-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
++                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
++              </svg>
++              <p className="mt-4 text-red-600 dark:text-red-400">{error}</p>
++            </div>
+           ) : featuredApps.length === 0 ? (
+-            <div className="text-center py-12">No featured apps available.</div>
++            <div className="text-center py-16 bg-neutral-50 dark:bg-neutral-800/50 rounded-apple-lg">
++              <svg className="w-8 h-8 text-neutral-400 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
++                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
++              </svg>
++              <p className="mt-4 text-neutral-600 dark:text-neutral-400">No featured apps available.</p>
++            </div>
+           ) : (
+-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+-              {featuredApps.map((app) => (
+-                <Link key={app.id} href={`/apps/${app.id}`}>
+-                  <div className="app-card h-full flex flex-col">
+-                    <div className="p-4 flex items-center">
+-                      <div className="w-16 h-16 relative mr-4">
++            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
++              {featuredApps.map((app, index) => (
++                <Link key={app.id} href={`/apps/${app.id}`} className="group">
++                  <div className="app-card h-full flex flex-col animate-apple-scale-in" style={{ animationDelay: `${0.1 * index}s` }}>
++                    <div className="p-5 flex items-center">
++                      <div className="w-16 h-16 relative mr-4 overflow-hidden rounded-apple-sm shadow-apple-sm group-hover:shadow-apple transition-all duration-300">
+                         <Image 
+                           src={app.logoUrl || '/placeholder.png'} 
+                           alt={app.name} 
+                           fill 
+-                          className="rounded-lg object-cover"
++                          className="object-cover"
+                         />
+                       </div>
+                       <div>
+-                        <h3 className="font-bold text-lg">{app.name}</h3>
+-                        <div className="flex flex-wrap gap-2 mt-1">
+-                          {app.tags.slice(0, 3).map((tag) => (
+-                            <span key={tag} className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded">
++                        <h3 className="font-bold text-lg text-neutral-800 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
++                          {app.name}
++                        </h3>
++                        <div className="flex flex-wrap gap-2 mt-2">
++                          {app.tags.slice(0, 2).map((tag) => (
++                            <span key={tag} className="apple-tag text-xs">
+                               {tag}
+                             </span>
+                           ))}
+                         </div>
+                       </div>
+                     </div>
+-                    <div className="p-4 border-t flex-grow">
+-                      <p className="text-gray-600 line-clamp-2">{app.description}</p>
++                    <div className="p-5 border-t border-neutral-100 dark:border-neutral-800 flex-grow">
++                      <p className="text-neutral-600 dark:text-neutral-400 line-clamp-2">{app.description}</p>
++                    </div>
++                    <div className="p-5 flex justify-end">
++                      <span className="text-primary-600 dark:text-primary-400 text-sm font-medium flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
++                        Explore
++                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" viewBox="0 0 20 20" fill="currentColor">
++                          <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
++                        </svg>
++                      </span>
+                     </div>
+                   </div>
+                 </Link>
+@@ -116,68 +185,268 @@ export default function Home() {
+           )}
+         </section>
+ 
+-        {/* Boosted Apps Section - Only show if boosting is enabled */}
+-        {config?.enableModules.boosting && (
+-          <section>
+-            <div className="flex justify-between items-center mb-6">
+-              <h2 className="text-2xl font-bold">Top Boosted Apps</h2>
+-              <Link href="/apps?sort=boost" className="text-primary-600 hover:text-primary-500">
+-                View all
+-              </Link>
++        {/* Boosted Apps Section */}
++        <section className="mt-16 animate-apple-fade-in" style={{ animationDelay: '0.6s' }}>
++          <div className="flex justify-between items-center mb-8">
++            <h2 className="text-2xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-800 dark:from-primary-400 dark:to-primary-600">
++              Boosted Apps
++            </h2>
++            <Link href="/apps?boosted=true" className="flex items-center text-primary-600 hover:text-primary-500 font-medium transition-colors">
++              View all
++              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" viewBox="0 0 20 20" fill="currentColor">
++                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
++              </svg>
++            </Link>
++          </div>
++          
++          {loading ? (
++            <div className="text-center py-16 animate-pulse">
++              <div className="inline-block rounded-full bg-primary-100 p-4">
++                <svg className="w-8 h-8 text-primary-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
++                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
++                </svg>
++              </div>
++              <p className="mt-4 text-neutral-600 dark:text-neutral-400">Loading boosted apps...</p>
+             </div>
+-            
+-            {loading ? (
+-              <div className="text-center py-12">Loading boosted apps...</div>
+-            ) : error ? (
+-              <div className="text-center py-12 text-red-500">{error}</div>
+-            ) : boostedApps.length === 0 ? (
+-              <div className="text-center py-12">No boosted apps available.</div>
+-            ) : (
+-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+-                {boostedApps.map((app) => (
+-                  <Link key={app.id} href={`/apps/${app.id}`}>
+-                    <div className="app-card h-full flex flex-col">
+-                      <div className="p-4 flex items-center">
+-                        <div className="w-16 h-16 relative mr-4">
+-                          <Image 
+-                            src={app.logoUrl || '/placeholder.png'} 
+-                            alt={app.name} 
+-                            fill 
+-                            className="rounded-lg object-cover"
+-                          />
+-                        </div>
+-                        <div>
+-                          <h3 className="font-bold text-lg">{app.name}</h3>
+-                          <div className="mt-1 text-primary-600 font-medium">
+-                            {app.boostTotal} {config?.primaryToken || 'tokens'} boosted
+-                          </div>
+-                        </div>
+-                      </div>
+-                      <div className="p-4 border-t flex-grow">
+-                        <p className="text-gray-600 line-clamp-2">{app.description}</p>
+-                      </div>
++          ) : error ? (
++            <div className="text-center py-16 bg-red-50 dark:bg-red-900/20 rounded-apple-lg">
++              <svg className="w-8 h-8 text-red-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
++                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
++              </svg>
++              <p className="mt-4 text-red-600 dark:text-red-400">{error}</p>
++            </div>
++          ) : boostedApps.length === 0 ? (
++            <div className="text-center py-16 bg-neutral-50 dark:bg-neutral-800/50 rounded-apple-lg">
++              <svg className="w-8 h-8 text-neutral-400 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
++                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
++              </svg>
++              <p className="mt-4 text-neutral-600 dark:text-neutral-400">No boosted apps available.</p>
++            </div>
++          ) : (
++            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
++              {boostedApps.map((app, index) => (
++                <Link key={app.id} href={`/apps/${app.id}`} className="group">
++                  <div className="app-card h-full flex flex-col items-center p-6 text-center animate-apple-scale-in" style={{ animationDelay: `${0.1 * index}s` }}>
++                    <div className="w-20 h-20 relative mb-5 overflow-hidden rounded-apple-md shadow-apple-sm group-hover:shadow-apple transition-all duration-300">
++                      <Image 
++                        src={app.logoUrl || '/placeholder.png'} 
++                        alt={app.name} 
++                        fill 
++                        className="object-cover"
++                      />
+                     </div>
+-                  </Link>
+-                ))}
+-              </div>
+-            )}
+-          </section>
+-        )}
++                    <h3 className="font-bold text-lg mb-3 text-neutral-800 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
++                      {app.name}
++                    </h3>
++                    <div className="flex flex-wrap justify-center gap-2 mb-4">
++                      {app.tags.slice(0, 2).map((tag) => (
++                        <span key={tag} className="apple-tag text-xs">
++                          {tag}
++                        </span>
++                      ))}
++                    </div>
++                    <p className="text-neutral-600 dark:text-neutral-400 text-sm line-clamp-2 mb-4">{app.description}</p>
++                    <div className="mt-auto">
++                      <span className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 opacity-0 group-hover:opacity-100 transition-opacity">
++                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
++                          <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
++                        </svg>
++                      </span>
++                    </div>
++                  </div>
++                </Link>
++              ))}
++            </div>
++          )}
++        </section>
+ 
+         {/* Categories Section */}
+-        <section>
+-          <h2 className="text-2xl font-bold mb-6">Browse by Category</h2>
+-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+-            {['DeFi', 'NFT', 'Gaming', 'Social', 'Tools', 'Infrastructure', 'DAO', 'Other'].map((category) => (
+-              <Link key={category} href={`/apps?category=${category}`}>
+-                <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-6 text-center hover:bg-primary-100 dark:hover:bg-primary-900 transition-colors">
+-                  <h3 className="font-medium text-lg">{category}</h3>
++        <section className="mt-16 animate-apple-fade-in" style={{ animationDelay: '0.8s' }}>
++          <div className="flex justify-between items-center mb-8">
++            <h2 className="text-2xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-800 dark:from-primary-400 dark:to-primary-600">
++              Categories
++            </h2>
++            <Link href="/categories" className="flex items-center text-primary-600 hover:text-primary-500 font-medium transition-colors">
++              View all
++              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" viewBox="0 0 20 20" fill="currentColor">
++                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
++              </svg>
++            </Link>
++          </div>
++          
++          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
++            {[
++              { name: 'DeFi', icon: '💰', color: 'from-blue-500 to-indigo-600' },
++              { name: 'NFT', icon: '🖼️', color: 'from-purple-500 to-pink-600' },
++              { name: 'Gaming', icon: '🎮', color: 'from-green-500 to-teal-600' },
++              { name: 'Social', icon: '👥', color: 'from-yellow-500 to-orange-600' }
++            ].map((category, index) => (
++              <Link href={`/categories/${category.name.toLowerCase()}`} key={index}>
++                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden group hover:shadow-xl transition-shadow duration-300 h-full flex flex-col">
++                  <div className="p-5 flex-grow">
++                    <div className={`inline-flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br ${category.color} text-white text-2xl mb-4 shadow-lg`}>
++                      {category.icon}
++                    </div>
++                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-1">{category.name}</h3>
++                  </div>
++                  <div className="p-5 flex justify-end">
++                    <span className="text-primary-600 dark:text-primary-400 text-sm font-medium flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
++                      Explore
++                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" viewBox="0 0 20 20" fill="currentColor">
++                        <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
++                      </svg>
++                    </span>
++                  </div>
+                 </div>
+               </Link>
+             ))}
+           </div>
+         </section>
++
++      {/* Boosted Apps Section */}
++      <section className="mt-16 animate-apple-fade-in" style={{ animationDelay: '0.6s' }}>
++        <div className="flex justify-between items-center mb-8">
++          <h2 className="text-2xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-800 dark:from-primary-400 dark:to-primary-600">
++            Boosted Apps
++          </h2>
++          <Link href="/apps?boosted=true" className="flex items-center text-primary-600 hover:text-primary-500 font-medium transition-colors">
++            View all
++            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" viewBox="0 0 20 20" fill="currentColor">
++              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
++            </svg>
++          </Link>
++        </div>
++        
++        {loading ? (
++          <div className="text-center py-16 animate-pulse">
++            <div className="inline-block rounded-full bg-primary-100 p-4">
++              <svg className="w-8 h-8 text-primary-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
++                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
++              </svg>
++            </div>
++            <p className="mt-4 text-neutral-600 dark:text-neutral-400">Loading boosted apps...</p>
++          </div>
++        ) : error ? (
++          <div className="text-center py-16 bg-red-50 dark:bg-red-900/20 rounded-apple-lg">
++            <svg className="w-8 h-8 text-red-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
++              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
++            </svg>
++            <p className="mt-4 text-red-600 dark:text-red-400">{error}</p>
++          </div>
++        ) : boostedApps.length === 0 ? (
++          <div className="text-center py-16 bg-neutral-50 dark:bg-neutral-800/50 rounded-apple-lg">
++            <svg className="w-8 h-8 text-neutral-400 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
++              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
++            </svg>
++            <p className="mt-4 text-neutral-600 dark:text-neutral-400">No boosted apps available.</p>
++          </div>
++        ) : (
++          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
++            {boostedApps.map((app, index) => (
++              <Link key={app.id} href={`/apps/${app.id}`} className="group">
++                <div className="app-card h-full flex flex-col items-center p-6 text-center animate-apple-scale-in" style={{ animationDelay: `${0.1 * index}s` }}>
++                  <div className="w-20 h-20 relative mb-5 overflow-hidden rounded-apple-md shadow-apple-sm group-hover:shadow-apple transition-all duration-300">
++                    <Image 
++                      src={app.logoUrl || '/placeholder.png'} 
++                      alt={app.name} 
++                      fill 
++                      className="object-cover"
++                    />
++                  </div>
++                  <h3 className="font-bold text-lg mb-3 text-neutral-800 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
++                    {app.name}
++                  </h3>
++                  <div className="flex flex-wrap justify-center gap-2 mb-4">
++                    {app.tags.slice(0, 2).map((tag) => (
++                      <span key={tag} className="apple-tag text-xs">
++                        {tag}
++                      </span>
++                    ))}
++                  </div>
++                  <p className="text-neutral-600 dark:text-neutral-400 text-sm line-clamp-2 mb-4">{app.description}</p>
++                  <div className="mt-auto">
++                    <span className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 opacity-0 group-hover:opacity-100 transition-opacity">
++                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
++                        <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
++                      </svg>
++                    </span>
++                  </div>
++                </div>
++              </Link>
++            ))}
++          </div>
++        )}
++      </section>
++
++      {/* Categories Section */}
++      <section className="mt-16 animate-apple-fade-in" style={{ animationDelay: '0.8s' }}>
++        <div className="flex justify-between items-center mb-8">
++          <h2 className="text-2xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-800 dark:from-primary-400 dark:to-primary-600">
++            Categories
++          </h2>
++          <Link href="/categories" className="flex items-center text-primary-600 hover:text-primary-500 font-medium transition-colors">
++            View all
++            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" viewBox="0 0 20 20" fill="currentColor">
++              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
++            </svg>
++          </Link>
++        </div>
++        
++        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
++          {categories.map((category, index) => (
++            <Link key={category.name} href={`/categories/${category.name.toLowerCase()}`} className="group">
++              <div className="app-card p-6 text-center rounded-apple-lg shadow-apple-sm hover:shadow-apple transition-all duration-300 animate-apple-scale-in" style={{ animationDelay: `${0.1 * index}s` }}>
++                <div className="mb-4">
++                  <div className={`w-16 h-16 bg-gradient-to-br ${category.color} rounded-apple-lg flex items-center justify-center mx-auto shadow-inner text-white`}>
++                    <span className="text-2xl">{category.icon}</span>
++                  </div>
++                </div>
++                <h3 className="font-medium text-lg text-neutral-800 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
++                  {category.name}
++                </h3>
++              </div>
++            </Link>
++          ))}
++        </div>
++      </section>
++
++      {/* Newsletter Section */}
++      <section className="apple-section apple-gradient-neutral mt-16 p-10 rounded-apple-lg overflow-hidden relative animate-apple-fade-in" style={{ animationDelay: '1s' }}>
++        {/* Abstract shapes in background */}
++        <div className="absolute inset-0 overflow-hidden opacity-10">
++          <div className="absolute top-10 left-1/4 w-64 h-64 rounded-full bg-white blur-3xl"></div>
++          <div className="absolute bottom-10 right-1/3 w-80 h-80 rounded-full bg-white blur-3xl"></div>
++        </div>
++        
++        <div className="max-w-2xl mx-auto text-center relative z-10">
++          <h2 className="text-2xl md:text-3xl font-bold mb-4 text-neutral-800 dark:text-white">
++            Stay Updated
++          </h2>
++          <p className="mb-8 text-lg text-neutral-600 dark:text-neutral-300">
++            Subscribe to our newsletter to get the latest updates on new apps and features.
++          </p>
++          <form className="flex flex-col sm:flex-row gap-3">
++            <input 
++              type="email" 
++              placeholder="Enter your email" 
++              className="flex-grow px-5 py-3 rounded-apple-md border border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-primary-500 shadow-apple-sm"
++              required
++            />
++            <button 
++              type="submit" 
++              className="btn-primary px-8 py-3 shadow-apple-sm hover:shadow-apple transition-all duration-300"
++            >
++              Subscribe
++            </button>
++          </form>
++          <p className="mt-4 text-xs text-neutral-500 dark:text-neutral-400">
++            We respect your privacy. Unsubscribe at any time.
++          </p>
++        </div>
++      </section>
+       </div>
+-    </>
++    </Layout>
+   );
+-}
++};
++
++export default Home;
+diff --git a/web/styles/globals.css b/web/styles/globals.css
+index 478ffb6..f91697e 100644
+--- a/web/styles/globals.css
++++ b/web/styles/globals.css
+@@ -2,20 +2,41 @@
+ @tailwind components;
+ @tailwind utilities;
+ 
++/* Apple-inspired design system */
+ :root {
+   --foreground-rgb: 0, 0, 0;
+   --background-start-rgb: 250, 250, 250;
+   --background-end-rgb: 255, 255, 255;
++  
++  /* Apple-inspired shadows */
++  --shadow-apple-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
++  --shadow-apple: 0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1);
++  --shadow-apple-md: 0 10px 15px rgba(0, 0, 0, 0.04), 0 4px 6px rgba(0, 0, 0, 0.08);
++  --shadow-apple-lg: 0 20px 25px rgba(0, 0, 0, 0.03), 0 10px 10px rgba(0, 0, 0, 0.06);
++  
++  /* Apple-inspired transitions */
++  --transition-apple: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1.0);
+ }
+ 
+ @media (prefers-color-scheme: dark) {
+   :root {
+     --foreground-rgb: 255, 255, 255;
+-    --background-start-rgb: 0, 0, 0;
+-    --background-end-rgb: 20, 20, 20;
++    --background-start-rgb: 10, 10, 10;
++    --background-end-rgb: 24, 24, 27;
++    
++    /* Darker shadows for dark mode */
++    --shadow-apple-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
++    --shadow-apple: 0 4px 6px rgba(0, 0, 0, 0.2), 0 1px 3px rgba(0, 0, 0, 0.3);
++    --shadow-apple-md: 0 10px 15px rgba(0, 0, 0, 0.15), 0 4px 6px rgba(0, 0, 0, 0.2);
++    --shadow-apple-lg: 0 20px 25px rgba(0, 0, 0, 0.15), 0 10px 10px rgba(0, 0, 0, 0.1);
+   }
+ }
+ 
++/* Base styles */
++html {
++  scroll-behavior: smooth;
++}
++
+ body {
+   color: rgb(var(--foreground-rgb));
+   background: linear-gradient(
+@@ -24,20 +45,94 @@ body {
+       rgb(var(--background-end-rgb))
+     )
+     rgb(var(--background-start-rgb));
++  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
++  -webkit-font-smoothing: antialiased;
++  -moz-osx-font-smoothing: grayscale;
++}
++
++/* Apple-style glass effect */
++.glass-effect {
++  @apply bg-white bg-opacity-70 dark:bg-neutral-900 dark:bg-opacity-70 backdrop-blur-apple;
++  box-shadow: var(--shadow-apple);
+ }
+ 
++/* Apple-style card */
+ .app-card {
+-  @apply border rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-200;
++  @apply rounded-apple overflow-hidden bg-white dark:bg-neutral-800 transition-all duration-300 ease-out;
++  box-shadow: var(--shadow-apple);
++  transform: translateZ(0);
+ }
+ 
++.app-card:hover {
++  @apply transform -translate-y-1;
++  box-shadow: var(--shadow-apple-md);
++}
++
++/* Apple-style buttons */
+ .btn-primary {
+-  @apply bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-md transition-colors duration-200;
++  @apply bg-primary-500 hover:bg-primary-600 text-white font-medium py-3 px-6 rounded-apple-sm;
++  transition: var(--transition-apple);
++  box-shadow: var(--shadow-apple-sm);
++}
++
++.btn-primary:hover {
++  box-shadow: var(--shadow-apple);
+ }
+ 
+ .btn-secondary {
+-  @apply bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-md transition-colors duration-200;
++  @apply bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-800 dark:text-white font-medium py-3 px-6 rounded-apple-sm;
++  transition: var(--transition-apple);
++  box-shadow: var(--shadow-apple-sm);
++}
++
++.btn-secondary:hover {
++  box-shadow: var(--shadow-apple);
+ }
+ 
++/* Apple-style input fields */
+ .input-field {
+-  @apply border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
++  @apply border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 rounded-apple-sm px-4 py-3 text-neutral-800 dark:text-white;
++  transition: var(--transition-apple);
++  box-shadow: var(--shadow-apple-sm);
++}
++
++.input-field:focus {
++  @apply outline-none border-primary-400 ring-2 ring-primary-200 dark:ring-primary-900;
++  box-shadow: var(--shadow-apple);
++}
++
++/* Apple-style section */
++.apple-section {
++  @apply rounded-apple-lg p-6 md:p-8 animate-apple-fade-in;
++}
++
++/* Apple-style tags */
++.apple-tag {
++  @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium;
++  background: rgba(59, 130, 246, 0.1);
++  color: rgb(59, 130, 246);
++}
++
++/* Apple-style gradients */
++.apple-gradient-blue {
++  @apply bg-gradient-to-r from-primary-500 to-accent-teal text-white;
++}
++
++.apple-gradient-purple {
++  @apply bg-gradient-to-r from-accent-indigo to-accent-purple text-white;
++}
++
++.apple-gradient-orange {
++  @apply bg-gradient-to-r from-accent-orange to-accent-pink text-white;
++}
++
++/* Apple-style header */
++.apple-header {
++  @apply sticky top-0 z-50 glass-effect;
++  box-shadow: var(--shadow-apple);
++}
++
++/* Apple-style footer */
++.apple-footer {
++  @apply glass-effect mt-auto;
+ }
+diff --git a/web/tailwind.config.js b/web/tailwind.config.js
+index b11de20..3ccda92 100644
+--- a/web/tailwind.config.js
++++ b/web/tailwind.config.js
+@@ -8,20 +8,103 @@ module.exports = {
+   theme: {
+     extend: {
+       colors: {
++        // Apple-inspired color palette
+         primary: {
+-          50: '#f0f9ff',
+-          100: '#e0f2fe',
+-          200: '#bae6fd',
+-          300: '#7dd3fc',
+-          400: '#38bdf8',
+-          500: '#0ea5e9',
+-          600: '#0284c7',
+-          700: '#0369a1',
+-          800: '#075985',
+-          900: '#0c4a6e',
++          50: '#f5f9ff',
++          100: '#e6f1fe',
++          200: '#cce3fd',
++          300: '#99c7fb',
++          400: '#66aaf9',
++          500: '#3b82f6', // Apple blue
++          600: '#2563eb',
++          700: '#1d4ed8',
++          800: '#1e40af',
++          900: '#1e3a8a',
++        },
++        // Secondary accent colors
++        accent: {
++          green: '#34c759', // Apple green
++          indigo: '#5856d6', // Apple indigo
++          orange: '#ff9500', // Apple orange
++          pink: '#ff2d55', // Apple pink
++          purple: '#af52de', // Apple purple
++          red: '#ff3b30', // Apple red
++          teal: '#5ac8fa', // Apple teal
++          yellow: '#ffcc00', // Apple yellow
++        },
++        // Neutral colors
++        neutral: {
++          50: '#fafafa',
++          100: '#f4f4f5',
++          200: '#e4e4e7',
++          300: '#d4d4d8',
++          400: '#a1a1aa',
++          500: '#71717a',
++          600: '#52525b',
++          700: '#3f3f46',
++          800: '#27272a',
++          900: '#18181b',
++        },
++      },
++      fontFamily: {
++        sans: [
++          '-apple-system',
++          'BlinkMacSystemFont',
++          'San Francisco',
++          'Segoe UI',
++          'Roboto',
++          'Helvetica Neue',
++          'sans-serif',
++        ],
++      },
++      borderRadius: {
++        'apple': '1rem',
++        'apple-sm': '0.75rem',
++        'apple-lg': '1.25rem',
++      },
++      boxShadow: {
++        'apple': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
++        'apple-md': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
++        'apple-lg': '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
++        'apple-inner': 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.06)',
++      },
++      backdropFilter: {
++        'apple': 'saturate(180%) blur(20px)',
++      },
++      animation: {
++        'apple-fade-in': 'apple-fade-in 0.5s ease-out',
++        'apple-scale-in': 'apple-scale-in 0.3s ease-out',
++        'apple-slide-up': 'apple-slide-up 0.4s ease-out',
++      },
++      keyframes: {
++        'apple-fade-in': {
++          '0%': { opacity: '0' },
++          '100%': { opacity: '1' },
++        },
++        'apple-scale-in': {
++          '0%': { transform: 'scale(0.95)', opacity: '0' },
++          '100%': { transform: 'scale(1)', opacity: '1' },
++        },
++        'apple-slide-up': {
++          '0%': { transform: 'translateY(10px)', opacity: '0' },
++          '100%': { transform: 'translateY(0)', opacity: '1' },
+         },
+       },
+     },
+   },
+-  plugins: [],
++  plugins: [
++    function({ addUtilities }) {
++      const newUtilities = {
++        '.backdrop-blur-apple': {
++          backdropFilter: 'saturate(180%) blur(20px)',
++        },
++        '.text-gradient': {
++          background: 'linear-gradient(to right, #3b82f6, #8b5cf6)',
++          '-webkit-background-clip': 'text',
++          'color': 'transparent',
++        },
++      }
++      addUtilities(newUtilities)
++    }
++  ],
+ }

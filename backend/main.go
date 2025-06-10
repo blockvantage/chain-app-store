@@ -94,7 +94,11 @@ func registerCoreRoutes(router *gin.Engine, db *storage.DB, cfg *config.Config) 
 
 	// App routes
 	router.GET("/apps", storage.GetApps(db))
+	router.GET("/apps/:id", storage.GetApp(db))
 	router.POST("/apps", storage.CreateApp(db, cfg))
+	
+	// Image routes
+	router.GET("/images/:id", storage.GetAppImage(db))
 
 	// Admin routes with authentication middleware
 	admin := router.Group("/admin")

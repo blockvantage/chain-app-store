@@ -2,18 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Apple-inspired design system */
 :root {
   --foreground-rgb: 0, 0, 0;
   --background-start-rgb: 250, 250, 250;
   --background-end-rgb: 255, 255, 255;
+  
+  /* Apple-inspired shadows */
+  --shadow-apple-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
+  --shadow-apple: 0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1);
+  --shadow-apple-md: 0 10px 15px rgba(0, 0, 0, 0.04), 0 4px 6px rgba(0, 0, 0, 0.08);
+  --shadow-apple-lg: 0 20px 25px rgba(0, 0, 0, 0.03), 0 10px 10px rgba(0, 0, 0, 0.06);
+  
+  /* Apple-inspired transitions */
+  --transition-apple: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1.0);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 20, 20, 20;
+    --background-start-rgb: 10, 10, 10;
+    --background-end-rgb: 24, 24, 27;
+    
+    /* Darker shadows for dark mode */
+    --shadow-apple-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
+    --shadow-apple: 0 4px 6px rgba(0, 0, 0, 0.2), 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-apple-md: 0 10px 15px rgba(0, 0, 0, 0.15), 0 4px 6px rgba(0, 0, 0, 0.2);
+    --shadow-apple-lg: 0 20px 25px rgba(0, 0, 0, 0.15), 0 10px 10px rgba(0, 0, 0, 0.1);
   }
+}
+
+/* Base styles */
+html {
+  scroll-behavior: smooth;
 }
 
 body {
@@ -24,20 +45,94 @@ body {
       rgb(var(--background-end-rgb))
     )
     rgb(var(--background-start-rgb));
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
+/* Apple-style glass effect */
+.glass-effect {
+  @apply bg-white bg-opacity-70 dark:bg-neutral-900 dark:bg-opacity-70 backdrop-blur-apple;
+  box-shadow: var(--shadow-apple);
+}
+
+/* Apple-style card */
 .app-card {
-  @apply border rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-200;
+  @apply rounded-apple overflow-hidden bg-white dark:bg-neutral-800 transition-all duration-300 ease-out;
+  box-shadow: var(--shadow-apple);
+  transform: translateZ(0);
 }
 
+.app-card:hover {
+  @apply transform -translate-y-1;
+  box-shadow: var(--shadow-apple-md);
+}
+
+/* Apple-style buttons */
 .btn-primary {
-  @apply bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-md transition-colors duration-200;
+  @apply bg-primary-500 hover:bg-primary-600 text-white font-medium py-3 px-6 rounded-apple-sm;
+  transition: var(--transition-apple);
+  box-shadow: var(--shadow-apple-sm);
+}
+
+.btn-primary:hover {
+  box-shadow: var(--shadow-apple);
 }
 
 .btn-secondary {
-  @apply bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-md transition-colors duration-200;
+  @apply bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-800 dark:text-white font-medium py-3 px-6 rounded-apple-sm;
+  transition: var(--transition-apple);
+  box-shadow: var(--shadow-apple-sm);
 }
 
+.btn-secondary:hover {
+  box-shadow: var(--shadow-apple);
+}
+
+/* Apple-style input fields */
 .input-field {
-  @apply border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
+  @apply border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 rounded-apple-sm px-4 py-3 text-neutral-800 dark:text-white;
+  transition: var(--transition-apple);
+  box-shadow: var(--shadow-apple-sm);
+}
+
+.input-field:focus {
+  @apply outline-none border-primary-400 ring-2 ring-primary-200 dark:ring-primary-900;
+  box-shadow: var(--shadow-apple);
+}
+
+/* Apple-style section */
+.apple-section {
+  @apply rounded-apple-lg p-6 md:p-8 animate-apple-fade-in;
+}
+
+/* Apple-style tags */
+.apple-tag {
+  @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium;
+  background: rgba(59, 130, 246, 0.1);
+  color: rgb(59, 130, 246);
+}
+
+/* Apple-style gradients */
+.apple-gradient-blue {
+  @apply bg-gradient-to-r from-primary-500 to-accent-teal text-white;
+}
+
+.apple-gradient-purple {
+  @apply bg-gradient-to-r from-accent-indigo to-accent-purple text-white;
+}
+
+.apple-gradient-orange {
+  @apply bg-gradient-to-r from-accent-orange to-accent-pink text-white;
+}
+
+/* Apple-style header */
+.apple-header {
+  @apply sticky top-0 z-50 glass-effect;
+  box-shadow: var(--shadow-apple);
+}
+
+/* Apple-style footer */
+.apple-footer {
+  @apply glass-effect mt-auto;
 }

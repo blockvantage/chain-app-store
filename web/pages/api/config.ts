@@ -1,10 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import axios from 'axios';
 
-// Get the backend URL from environment variables or use default
-// In Next.js API routes, we can access server-side environment variables directly
-const BACKEND_URL = process.env.BACKEND_URL || 'http://backend:8080';
-console.log('Backend URL:', BACKEND_URL);
+// Get the backend URL from environment variables with appropriate fallbacks
+// In Docker: process.env.BACKEND_URL is set to http://backend:8080
+// In local dev: process.env.BACKEND_URL should be set to http://localhost:8080
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8080';
+console.log('Backend URL for config:', BACKEND_URL);
 
 export default async function handler(
   req: NextApiRequest,

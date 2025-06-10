@@ -1,11 +1,11 @@
 {
-  "chainName": "Scroll",
-  "primaryToken": "USDC",
-  "rpcUrl": "https://rpc.scroll.io",
-  "explorerUrl": "https://scrollscan.com",
+  "chainName": "Ethereum",
+  "primaryToken": "ETH",
+  "rpcUrl": "https://eth.llamarpc.com",
+  "explorerUrl": "https://etherscan.io",
   "logos": {
-    "light": "/logos/scroll-light.svg",
-    "dark": "/logos/scroll-dark.svg"
+    "light": "https://cryptologos.cc/logos/ethereum-eth-logo.png?v=040",
+    "dark": "https://cryptologos.cc/logos/ethereum-eth-logo.png?v=040"
   },
   "boostingFeeSplit": {
     "platform": 20,
@@ -20,7 +20,7 @@
     "0x1234567890123456789012345678901234567890"
   ],
   "listingFee": {
-    "amount": "10",
-    "token": "USDC"
+    "amount": "0.001",
+    "token": "ETH"
   }
 }

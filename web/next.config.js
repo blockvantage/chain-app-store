@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   images: {
-    domains: ['localhost'],
+    domains: ['localhost', 'placehold.co', 'via.placeholder.com', 'placekitten.com'],
   },
   // Add rewrites for API requests
   async rewrites() {

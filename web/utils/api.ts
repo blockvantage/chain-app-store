@@ -1,10 +1,8 @@
 import axios from 'axios';
 
-// In Docker environment, the frontend can access the backend directly via the service name
-// For local development, use localhost
-const apiBaseUrl = process.env.NODE_ENV === 'production' 
-  ? 'http://backend:8080' 
-  : 'http://localhost:8080';
+// Use relative URLs for API calls from the browser
+// This will be proxied through Next.js API routes
+const apiBaseUrl = '/api';
 
 console.log('API Base URL:', apiBaseUrl);
 

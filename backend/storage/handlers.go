@@ -1,8 +1,12 @@
 package storage
 
 import (
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/chain-app-store/backend/config"
 	"github.com/chain-app-store/backend/utils"
@@ -37,10 +41,27 @@ func GetApps(db *DB) gin.HandlerFunc {
 		var total int64
 		db.Model(&App{}).Where("hidden = ?", false).Count(&total)
 
+		// Check if we should include mockup images
+		includeImages := c.Query("includeImages") == "true"
+		if includeImages {
+			query = query.Preload("MockupImages")
+		}
+
 		result := query.Offset(offset).Limit(pageSize).Find(&apps)
 		if result.Error != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
 			return
+		}
+
+		// If images are included but we don't want to send the binary data in the list view
+		// we can strip it out here and just send metadata
+		if includeImages && c.Query("imagesMetadataOnly") == "true" {
+			for i := range apps {
+				for j := range apps[i].MockupImages {
+					// Keep metadata but remove the actual image data
+					apps[i].MockupImages[j].ImageData = nil
+				}
+			}
 		}
 
 		c.JSON(http.StatusOK, gin.H{
@@ -58,17 +79,30 @@ func GetApps(db *DB) gin.HandlerFunc {
 // CreateApp creates a new app
 func CreateApp(db *DB, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var app App
-		if err := c.ShouldBindJSON(&app); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		// Parse multipart form with 10MB max memory
+		if err := c.Request.ParseMultipartForm(10 << 20); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "failed to parse form data: " + err.Error()})
 			return
 		}
 
-		// Verify listing fee transaction if required
-		if app.TxHash == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "listing fee transaction hash is required"})
+		// Get app data from form
+		appJSON := c.Request.FormValue("appData")
+		if appJSON == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "app data is required"})
 			return
 		}
+
+		var app App
+		if err := json.Unmarshal([]byte(appJSON), &app); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid app data: " + err.Error()})
+			return
+		}
+
+		// // Verify listing fee transaction if required
+		// if app.TxHash == "" {
+		// 	c.JSON(http.StatusBadRequest, gin.H{"error": "listing fee transaction hash is required"})
+		// 	return
+		// }
 
 		// In a real implementation, we would verify the transaction on the blockchain
 		// For now, we'll just save the transaction
@@ -87,7 +121,7 @@ func CreateApp(db *DB, cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		// Create the app
+		// Create the app first to get an ID
 		if err := db.Create(&app).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create app"})
 			return
@@ -99,7 +133,62 @@ func CreateApp(db *DB, cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		c.JSON(http.StatusCreated, app)
+		// Process mockup images
+		form, _ := c.MultipartForm()
+		files := form.File["mockupImages"]
+		for i, file := range files {
+			// Open the uploaded file
+			src, err := file.Open()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to open uploaded file"})
+				return
+			}
+			defer src.Close()
+
+			// Read the file content
+			fileBytes, err := io.ReadAll(src)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read uploaded file"})
+				return
+			}
+
+			// Get content type
+			contentType := file.Header.Get("Content-Type")
+			if contentType == "" {
+				// Try to detect content type if not provided
+				contentType = http.DetectContentType(fileBytes)
+			}
+
+			// Validate that it's an image
+			if !strings.HasPrefix(contentType, "image/") {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "uploaded file is not an image"})
+				return
+			}
+
+			// Create AppImage record
+			appImage := AppImage{
+				AppID:       app.ID,
+				ImageData:   fileBytes,
+				ContentType: contentType,
+				Filename:    file.Filename,
+				Order:       i, // Use the upload order as display order
+				Description: c.Request.FormValue(fmt.Sprintf("imageDescription[%d]", i)),
+			}
+
+			if err := db.Create(&appImage).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save image"})
+				return
+			}
+		}
+
+		// Fetch the complete app with images for the response
+		var completeApp App
+		if err := db.Preload("MockupImages").First(&completeApp, app.ID).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch complete app data"})
+			return
+		}
+
+		c.JSON(http.StatusCreated, completeApp)
 	}
 }
 
@@ -156,6 +245,66 @@ func HideApp(db *DB) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"success": true})
+	}
+}
+
+// GetAppImage returns a specific mockup image by ID
+func GetAppImage(db *DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		imageID := c.Param("id")
+		if imageID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "image ID is required"})
+			return
+		}
+
+		var image AppImage
+		if err := db.First(&image, imageID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "image not found"})
+			return
+		}
+
+		// Set appropriate content type header
+		c.Header("Content-Type", image.ContentType)
+		c.Header("Content-Disposition", fmt.Sprintf("inline; filename=%s", image.Filename))
+		
+		// Return the image data directly
+		c.Data(http.StatusOK, image.ContentType, image.ImageData)
+	}
+}
+
+// GetApp returns a specific app by ID with its mockup images
+func GetApp(db *DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		appID := c.Param("id")
+		if appID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "app ID is required"})
+			return
+		}
+
+		var app App
+		
+		// Check if we should include mockup images
+		includeImages := c.Query("includeImages") == "true"
+		query := db.Model(&App{})
+		
+		if includeImages {
+			query = query.Preload("MockupImages")
+		}
+		
+		if err := query.First(&app, appID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "app not found"})
+			return
+		}
+
+		// If images are included but we don't want to send the binary data
+		if includeImages && c.Query("imagesMetadataOnly") == "true" {
+			for i := range app.MockupImages {
+				// Keep metadata but remove the actual image data
+				app.MockupImages[i].ImageData = nil
+			}
+		}
+
+		c.JSON(http.StatusOK, app)
 	}
 }
 

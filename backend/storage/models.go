@@ -20,6 +20,27 @@ type App struct {
 	Featured      bool `json:"featured" gorm:"index"`
 	Hidden        bool `json:"hidden" gorm:"index"`
 	TxHash        string `json:"txHash"` // Transaction hash for listing fee
+	
+	// TODO: Replace binary storage with cloud storage solution in production
+	MockupImages []AppImage `json:"mockupImages" gorm:"foreignKey:AppID"`
+	
+	// Social media links
+	TwitterURL   string `json:"twitterUrl"`
+	DiscordURL   string `json:"discordUrl"`
+	TelegramURL  string `json:"telegramUrl"`
+	MediumURL    string `json:"mediumUrl"`
+	GithubURL    string `json:"githubUrl"`
+}
+
+// AppImage represents a mockup image for an app
+type AppImage struct {
+	gorm.Model
+	AppID       uint   `json:"appId" gorm:"index"`
+	ImageData   []byte `json:"imageData" gorm:"type:longblob"` // Binary image data
+	ContentType string `json:"contentType"`                     // MIME type (e.g., image/jpeg, image/png)
+	Filename    string `json:"filename"`                        // Original filename
+	Description string `json:"description"`                      // Optional description of the image
+	Order       int    `json:"order"`                           // Display order
 }
 
 // Transaction represents a blockchain transaction

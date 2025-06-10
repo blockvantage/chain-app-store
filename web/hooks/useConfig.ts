@@ -19,6 +19,14 @@ interface ListingFeeConfig {
 }
 
 export interface Config {
+  title?: string;
+  description?: string;
+  headline?: string;
+  subheadline?: string;
+  ctaPrimary?: string;
+  ctaSecondary?: string;
+  newsletterTitle?: string;
+  newsletterSubtitle?: string;
   chainName: string;
   primaryToken: string;
   rpcUrl: string;
