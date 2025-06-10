@@ -1,0 +1,25 @@
+import '../styles/globals.css';
+import type { AppProps } from 'next/app';
+import Layout from '../components/Layout';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
+
+export default function App({ Component, pageProps }: AppProps) {
+  const [mounted, setMounted] = useState(false);
+  const router = useRouter();
+
+  // This ensures that the app is only rendered client-side to avoid hydration issues
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return null;
+  }
+
+  return (
+    <Layout>
+      <Component {...pageProps} key={router.asPath} />
+    </Layout>
+  );
+}
