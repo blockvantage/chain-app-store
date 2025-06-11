@@ -4,6 +4,7 @@ import type { AppProps } from 'next/app';
 import Layout from '../components/Layout';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { ThemeProvider } from 'next-themes';
 
 export default function App({ Component, pageProps }: AppProps) {
   const [mounted, setMounted] = useState(false);
@@ -19,6 +20,8 @@ export default function App({ Component, pageProps }: AppProps) {
   }
 
   return (
-    <Component {...pageProps} key={router.asPath} />
+    <ThemeProvider attribute="class">
+      <Component {...pageProps} key={router.asPath} />
+    </ThemeProvider>
   );
 }

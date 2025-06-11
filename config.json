@@ -4,8 +4,8 @@
   "rpcUrl": "https://eth.llamarpc.com",
   "explorerUrl": "https://etherscan.io",
   "logos": {
-    "light": "https://cryptologos.cc/logos/ethereum-eth-logo.png?v=040",
-    "dark": "https://cryptologos.cc/logos/ethereum-eth-logo.png?v=040"
+    "light": "https://upload.wikimedia.org/wikipedia/commons/0/05/Ethereum_logo_2014.svg",
+    "dark": "https://upload.wikimedia.org/wikipedia/commons/0/05/Ethereum_logo_2014.svg"
   },
   "boostingFeeSplit": {
     "platform": 20,

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { useConfig } from '../hooks/useConfig';
+import { useTheme } from 'next-themes';
 
 // Safe utility function for accessing nested properties
 const safe = {
@@ -31,20 +32,11 @@ type LayoutProps = {
 const Layout = ({ children }: LayoutProps) => {
   const router = useRouter();
   const { config, loading } = useConfig();
-  const [darkMode, setDarkMode] = React.useState(false);
-  const [scrolled, setScrolled] = React.useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const { resolvedTheme } = useTheme();
+  const isDarkMode = resolvedTheme === 'dark';
 
   React.useEffect(() => {
-    // Check for system dark mode preference
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      setDarkMode(true);
-    }
-
-    // Listen for changes in dark mode preference
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
-      setDarkMode(e.matches);
-    });
-
     // Add scroll listener for header effects
     const handleScroll = () => {
       setScrolled(window.scrollY > 10);
@@ -69,9 +61,11 @@ const Layout = ({ children }: LayoutProps) => {
                   {safe.get(config, 'logos', null) && 
                    typeof safe.get(config, 'logos.dark', '') === 'string' && 
                    typeof safe.get(config, 'logos.light', '') === 'string' ? (
-                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary-500 to-primary-600 text-white font-bold">
-                      {safe.get(config, 'chainName', 'C').charAt(0)}
-                    </div>
+                    <img 
+                      src={isDarkMode ? safe.get(config, 'logos.dark', '') : safe.get(config, 'logos.light', '')}
+                      alt={`${safe.get(config, 'chainName', 'Chain')} Logo`}
+                      className="w-full h-full object-contain"
+                    />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary-500 to-primary-600 text-white font-bold">
                       {safe.get(config, 'chainName', 'C').charAt(0)}
@@ -88,9 +82,9 @@ const Layout = ({ children }: LayoutProps) => {
               {[
                 { path: '/', label: 'Home' },
                 { path: '/apps', label: 'Apps' },
-                ...(safe.get(config, 'enableModules.poe', false) ? [{ path: '/leaderboard', label: 'Leaderboard' }] : []),
+                // ...(safe.get(config, 'enableModules.poe', false) ? [{ path: '/leaderboard', label: 'Leaderboard' }] : []),
                 { path: '/submit', label: 'Submit App' },
-                { path: '/about', label: 'About' }
+                // { path: '/about', label: 'About' }
               ].map((item) => (
                 <Link 
                   key={item.path}
@@ -130,9 +124,19 @@ const Layout = ({ children }: LayoutProps) => {
               <div className="flex items-center space-x-2 mb-3">
                 {!loading && (
                   <div className="relative w-8 h-8 overflow-hidden rounded-apple-sm">
-                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary-500 to-primary-600 text-white font-bold text-xs">
-                      {safe.get(config, 'chainName', 'C').charAt(0)}
-                    </div>
+                    {safe.get(config, 'logos', null) && 
+                     typeof safe.get(config, 'logos.dark', '') === 'string' && 
+                     typeof safe.get(config, 'logos.light', '') === 'string' ? (
+                      <img 
+                        src={isDarkMode ? safe.get(config, 'logos.dark', '') : safe.get(config, 'logos.light', '')}
+                        alt={`${safe.get(config, 'chainName', 'Chain')} Logo`}
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary-500 to-primary-600 text-white font-bold text-xs">
+                        {safe.get(config, 'chainName', 'C').charAt(0)}
+                      </div>
+                    )}                    
                   </div>
                 )}
                 <span className="text-lg font-semibold bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-accent-teal">
