@@ -1,14 +1,30 @@
 import axios from 'axios';
 
-// Use relative URLs for API calls from the browser
-// This will be proxied through Next.js API routes
-const apiBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+// Determine the API base URL based on environment
+const getBaseUrl = async () => {
+  // In development or when running in Docker, use the environment variable
+  if (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_BACKEND_URL) {
+    return process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+  }
 
-console.log('API Base URL:', apiBaseUrl);
+  // In production, fetch the backend URL from the config
+  try {
+    const response = await fetch('/config.json');
+    const config = await response.json();
+    return config.backendUrl;
+  } catch (error) {
+    console.error('Error loading config:', error);
+    return 'https://onchainhub.io/api'; // Fallback to production URL
+  }
+};
 
 // Create an axios instance with default config
-export const api = axios.create({
-  baseURL: apiBaseUrl
+export const api = axios.create();
+
+// Initialize the API base URL
+getBaseUrl().then(baseUrl => {
+  console.log('API Base URL:', baseUrl);
+  api.defaults.baseURL = baseUrl;
 });
 
 // App interfaces

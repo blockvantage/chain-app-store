@@ -45,9 +45,10 @@ services:
       - backend
     volumes:
       - config-out:/config:ro
+      - ./config.json:/app/public/config.json:ro
     environment:
       - CONFIG_PATH=/config/config.json
-      - NEXT_PUBLIC_BACKEND_URL=http://localhost:8080
+      - NODE_ENV=production
       - NODE_ENV=production
 
 volumes:
