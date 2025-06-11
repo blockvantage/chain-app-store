@@ -17,7 +17,7 @@ import (
 type Plugin struct{}
 
 // RegisterRoutes registers the boosting plugin routes
-func RegisterRoutes(router *gin.Engine, db *storage.DB, cfg *config.Config) error {
+func RegisterRoutes(router *gin.RouterGroup, db *storage.DB, cfg *config.Config) error {
 	// Register routes
 	router.POST("/boost", createBoost(db, cfg))
 	router.GET("/boosted", getBoostedApps(db))

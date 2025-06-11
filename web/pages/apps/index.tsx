@@ -314,17 +314,17 @@ export default function Apps() {
                   <div className="app-card h-full flex flex-col animate-apple-scale-in" style={{ animationDelay: `${0.1 * index}s` }}>
                     <div className="p-5 flex items-center">
                       <div className="w-16 h-16 relative mr-4 overflow-hidden rounded-apple-md shadow-apple-sm group-hover:shadow-apple transition-all duration-300">
-                        {safe.get(app, 'logoPath', null) ? (
-                          <img 
-                            src={`/api/images/${safe.get(app, 'logoPath', '')}`}
-                            alt={safe.get(app, 'name', 'App')} 
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 text-2xl font-bold">
-                            {safe.get(app, 'name', 'A').charAt(0)}
-                          </div>
-                        )}
+              {safe.get(app, 'logoPath', null) ? (
+                <img 
+                  src={safe.get(app, 'logoPath', '') ? `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'}/api/images/${safe.get(app, 'logoPath', '')}` : '/placeholder.png'}
+                  alt={safe.get(app, 'name', 'App')} 
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 text-4xl font-bold">
+                  {safe.get(app, 'name', 'A').charAt(0)}
+                </div>
+              )}
                       </div>
                       <div>
                         <h3 className="font-bold text-lg text-neutral-800 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">

@@ -23,7 +23,7 @@
     "amount": "0.001",
     "token": "ETH"
   },
-  "backendUrl": "https://onchainhub.io/api",
+  "backendUrl": "http://localhost:8080",
   "storage": {
     "imagesPath": "/data/images"
   }

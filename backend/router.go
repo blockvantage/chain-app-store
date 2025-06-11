@@ -1,9 +1,13 @@
 package main
 
 import (
+	"net/http"
+	"os"
+
 	"github.com/gin-gonic/gin"
 
 	"github.com/blockvantage/chain-app-store/backend/config"
+	"github.com/blockvantage/chain-app-store/backend/plugins/boosting"
 	"github.com/blockvantage/chain-app-store/backend/storage"
 )
 
@@ -24,18 +28,38 @@ func setupRouter(db *storage.DB, cfg *config.Config) *gin.Engine {
 		c.Next()
 	})
 
-	// Public routes
-	r.GET("/apps", storage.GetApps(db))
-	r.GET("/apps/:id", storage.GetApp(db))
-	r.GET("/apps/images/:id", storage.GetAppImage(db, cfg))
-	r.POST("/apps", storage.CreateApp(db, cfg))
-
-	// Admin routes
-	admin := r.Group("/admin")
-	admin.Use(storage.AdminAuthMiddleware(cfg))
+	// Get base path from environment variable
+	basePath := os.Getenv("API_BASE_PATH")
+	
+	// Create API group with base path
+	api := r.Group(basePath)
 	{
-		admin.POST("/feature", storage.FeatureApp(db))
-		admin.POST("/hide", storage.HideApp(db))
+		// Health check
+		api.GET("/health", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		})
+
+		// Config endpoint
+		api.GET("/config", func(c *gin.Context) {
+			c.JSON(http.StatusOK, cfg.GetPublicConfig())
+		})
+
+		// Public routes
+		api.GET("/apps", storage.GetApps(db))
+		api.GET("/apps/:id", storage.GetApp(db))
+		api.GET("/apps/images/:id", storage.GetAppImage(db, cfg))
+		api.POST("/apps", storage.CreateApp(db, cfg))
+
+		// Register boosting plugin routes
+		boosting.RegisterRoutes(api, db, cfg)
+
+		// Admin routes
+		admin := api.Group("/admin")
+		admin.Use(storage.AdminAuthMiddleware(cfg))
+		{
+			admin.POST("/feature", storage.FeatureApp(db))
+			admin.POST("/hide", storage.HideApp(db))
+		}
 	}
 
 	return r

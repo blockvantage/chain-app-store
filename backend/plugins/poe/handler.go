@@ -16,7 +16,7 @@ import (
 type Plugin struct{}
 
 // RegisterRoutes registers the POE plugin routes
-func RegisterRoutes(router *gin.Engine, db *storage.DB, cfg *config.Config) error {
+func RegisterRoutes(router *gin.RouterGroup, db *storage.DB, cfg *config.Config) error {
 	// Register routes
 	router.POST("/engage", logEngagement(db))
 	router.GET("/leaderboard", getLeaderboard(db))

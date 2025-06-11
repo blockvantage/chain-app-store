@@ -34,6 +34,7 @@ services:
     environment:
       - CONFIG_PATH=/config/config.json
       - DB_PATH=/data/appstore.db
+      - API_BASE_PATH=/api
 
   web:
     build:
@@ -44,11 +45,8 @@ services:
     depends_on:
       - backend
     volumes:
-      - config-out:/config:ro
       - ./config.json:/app/public/config.json:ro
     environment:
-      - CONFIG_PATH=/config/config.json
-      - NODE_ENV=production
       - NODE_ENV=production
 
 volumes:

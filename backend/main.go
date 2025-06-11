@@ -89,28 +89,35 @@ func main() {
 }
 
 func registerCoreRoutes(router *gin.Engine, db *storage.DB, cfg *config.Config) {
-	// Health check
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
-	})
-
-	// Get public config
-	router.GET("/config", func(c *gin.Context) {
-		c.JSON(http.StatusOK, cfg.GetPublicConfig())
-	})
-
-	// App routes
-	router.GET("/apps", storage.GetApps(db))
-	router.GET("/apps/:id", storage.GetApp(db))
-	router.POST("/apps", storage.CreateApp(db, cfg))
-	router.Static("/images", cfg.Storage.ImagesPath)
-
-	// Admin routes with authentication middleware
-	admin := router.Group("/admin")
-	admin.Use(storage.AdminAuthMiddleware(cfg))
+	// Get the base path from environment variable, default to empty string
+	basePath := os.Getenv("API_BASE_PATH")
+	
+	// Create a router group with the base path
+	api := router.Group(basePath)
 	{
-		admin.POST("/feature", storage.FeatureApp(db))
-		admin.POST("/hide", storage.HideApp(db))
+		// Health check
+		api.GET("/health", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		})
+
+		// Get public config
+		api.GET("/config", func(c *gin.Context) {
+			c.JSON(http.StatusOK, cfg.GetPublicConfig())
+		})
+
+		// App routes
+		api.GET("/apps", storage.GetApps(db))
+		api.GET("/apps/:id", storage.GetApp(db))
+		api.POST("/apps", storage.CreateApp(db, cfg))
+		api.Static("/images", cfg.Storage.ImagesPath)
+
+		// Admin routes with authentication middleware
+		admin := api.Group("/admin")
+		admin.Use(storage.AdminAuthMiddleware(cfg))
+		{
+			admin.POST("/feature", storage.FeatureApp(db))
+			admin.POST("/hide", storage.HideApp(db))
+		}
 	}
 }
 
@@ -141,16 +148,34 @@ func registerPluginRoutes(router *gin.Engine, db *storage.DB, cfg *config.Config
 }
 
 func registerBoostingPlugin(router *gin.Engine, db *storage.DB, cfg *config.Config) error {
+	// Get base path from environment variable
+	basePath := os.Getenv("API_BASE_PATH")
+	
+	// Create API group with base path
+	api := router.Group(basePath)
+	
 	// Import and register boosting plugin
-	return boosting.RegisterRoutes(router, db, cfg)
+	return boosting.RegisterRoutes(api, db, cfg)
 }
 
 func registerReviewsPlugin(router *gin.Engine, db *storage.DB, cfg *config.Config) error {
+	// Get base path from environment variable
+	basePath := os.Getenv("API_BASE_PATH")
+	
+	// Create API group with base path
+	api := router.Group(basePath)
+	
 	// Import and register reviews plugin
-	return reviews.RegisterRoutes(router, db, cfg)
+	return reviews.RegisterRoutes(api, db, cfg)
 }
 
 func registerPoePlugin(router *gin.Engine, db *storage.DB, cfg *config.Config) error {
+	// Get base path from environment variable
+	basePath := os.Getenv("API_BASE_PATH")
+	
+	// Create API group with base path
+	api := router.Group(basePath)
+	
 	// Import and register POE plugin
-	return poe.RegisterRoutes(router, db, cfg)
+	return poe.RegisterRoutes(api, db, cfg)
 }

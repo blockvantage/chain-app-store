@@ -1,31 +1,34 @@
 import axios from 'axios';
 
-// Determine the API base URL based on environment
-const getBaseUrl = async () => {
-  // In development or when running in Docker, use the environment variable
-  if (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_BACKEND_URL) {
-    return process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
-  }
-
-  // In production, fetch the backend URL from the config
-  try {
-    const response = await fetch('/config.json');
-    const config = await response.json();
-    return config.backendUrl;
-  } catch (error) {
-    console.error('Error loading config:', error);
-    return 'https://onchainhub.io/api'; // Fallback to production URL
-  }
-};
-
 // Create an axios instance with default config
 export const api = axios.create();
 
-// Initialize the API base URL
-getBaseUrl().then(baseUrl => {
-  console.log('API Base URL:', baseUrl);
-  api.defaults.baseURL = baseUrl;
-});
+// Function to fetch config and set base URL
+const initializeApi = async () => {
+  try {
+    const response = await fetch('/config.json');
+    const config = await response.json();
+    
+    // In development, use localhost:8080 directly
+    if (process.env.NODE_ENV === 'development') {
+      api.defaults.baseURL = 'http://localhost:8080/api';
+    } else {
+      // In production, use the configured backend URL
+      api.defaults.baseURL = `${config.backendUrl}/api`;
+    }
+    
+    console.log('API Base URL set:', api.defaults.baseURL);
+  } catch (error) {
+    console.error('Error loading config:', error);
+    // Fallback to localhost in development
+    if (process.env.NODE_ENV === 'development') {
+      api.defaults.baseURL = 'http://localhost:8080/api';
+    }
+  }
+};
+
+// Initialize the API configuration
+initializeApi();
 
 // App interfaces
 export interface AppImage {
