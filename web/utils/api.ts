@@ -11,10 +11,10 @@ const initializeApi = async () => {
     
     // In development, use localhost:8080 directly
     if (process.env.NODE_ENV === 'development') {
-      api.defaults.baseURL = 'http://localhost:8080/api';
+      api.defaults.baseURL = 'http://localhost:8080';
     } else {
       // In production, use the configured backend URL
-      api.defaults.baseURL = `${config.backendUrl}/api`;
+      api.defaults.baseURL = config.backendUrl;
     }
     
     console.log('API Base URL set:', api.defaults.baseURL);
@@ -135,12 +135,12 @@ export interface AppContributionsResponse {
 // API functions
 export const getApps = async (page = 1, pageSize = 20, featured = false, category?: string) => {
   const params = { page, pageSize, featured: featured ? 'true' : undefined, category };
-  const response = await api.get<AppListResponse>('/apps', { params });
+  const response = await api.get<AppListResponse>('/api/apps', { params });
   return response.data;
 };
 
 export const getApp = async (id: number) => {
-  const response = await api.get<App>(`/apps/${id}`);
+  const response = await api.get<App>(`/api/apps/${id}`);
   return response.data;
 };
 
@@ -156,7 +156,7 @@ export async function createApp(appData: any, logo: File, mockups?: File[], desc
     });
   }
 
-  const response = await api.post<App>('/apps', formData, {
+  const response = await api.post<App>('/api/apps', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
@@ -165,32 +165,32 @@ export async function createApp(appData: any, logo: File, mockups?: File[], desc
 };
 
 export const getReviews = async (appId: number) => {
-  const response = await api.get<ReviewsResponse>(`/reviews/${appId}`);
+  const response = await api.get<ReviewsResponse>(`/api/reviews/${appId}`);
   return response.data;
 };
 
 export const createReview = async (review: Omit<Review, 'id' | 'createdAt' | 'updatedAt'>) => {
-  const response = await api.post<Review>('/review', review);
+  const response = await api.post<Review>('/api/review', review);
   return response.data;
 };
 
 export const getBoostedApps = async () => {
-  const response = await api.get<BoostedAppsResponse>('/boosted');
+  const response = await api.get<BoostedAppsResponse>('/api/boosted');
   return response.data;
 };
 
 export const createBoost = async (boost: Omit<Boost, 'id' | 'createdAt' | 'updatedAt' | 'expiresAt'>) => {
-  const response = await api.post<Boost>('/boost', boost);
+  const response = await api.post<Boost>('/api/boost', boost);
   return response.data;
 };
 
 export const getLeaderboard = async () => {
-  const response = await api.get<LeaderboardResponse>('/leaderboard');
+  const response = await api.get<LeaderboardResponse>('/api/leaderboard');
   return response.data;
 };
 
 export const getAppContributions = async (appId: number) => {
-  const response = await api.get<AppContributionsResponse>(`/contributions/${appId}`);
+  const response = await api.get<AppContributionsResponse>(`/api/contributions/${appId}`);
   return response.data;
 };
 
@@ -201,7 +201,7 @@ export const logEngagement = async (engagement: {
   signature: string;
   txHash?: string;
 }) => {
-  const response = await api.post('/engage', engagement);
+  const response = await api.post('/api/engage', engagement);
   return response.data;
 };
 
