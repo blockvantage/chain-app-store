@@ -2,15 +2,18 @@ package storage
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/chain-app-store/backend/config"
-	"github.com/chain-app-store/backend/utils"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+
+	"github.com/blockvantage/chain-app-store/backend/config"
+	"github.com/blockvantage/chain-app-store/backend/storage/filestore"
+	"github.com/blockvantage/chain-app-store/backend/utils"
 )
 
 // GetApps returns all visible apps
@@ -56,10 +59,17 @@ func GetApps(db *DB) gin.HandlerFunc {
 		// If images are included but we don't want to send the binary data in the list view
 		// we can strip it out here and just send metadata
 		if includeImages && c.Query("imagesMetadataOnly") == "true" {
+			// Add mockup image URLs
 			for i := range apps {
+				// Handle logo path
+				if apps[i].LogoPath != "" {
+					apps[i].LogoPath = apps[i].LogoPath
+				}
+				// Handle mockup images
 				for j := range apps[i].MockupImages {
-					// Keep metadata but remove the actual image data
-					apps[i].MockupImages[j].ImageData = nil
+					if apps[i].MockupImages[j].ImagePath != "" {
+						apps[i].MockupImages[j].ImagePath = apps[i].MockupImages[j].ImagePath
+					}
 				}
 			}
 		}
@@ -79,6 +89,9 @@ func GetApps(db *DB) gin.HandlerFunc {
 // CreateApp creates a new app
 func CreateApp(db *DB, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Initialize file store
+		fs := filestore.New(cfg)
+
 		// Parse multipart form with 10MB max memory
 		if err := c.Request.ParseMultipartForm(10 << 20); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "failed to parse form data: " + err.Error()})
@@ -116,13 +129,42 @@ func CreateApp(db *DB, cfg *config.Config) gin.HandlerFunc {
 			Status:      "confirmed", // In reality, we would check the status on the blockchain
 		}
 
-		if err := db.Create(&tx).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to record transaction"})
+		// Check if transaction already exists
+		var existingTx Transaction
+		if err := db.Where("hash = ?", tx.Hash).First(&existingTx).Error; err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check transaction"})
+				return
+			}
+			// Transaction doesn't exist, create it
+			if err := db.Create(&tx).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to record transaction"})
+				return
+			}
+		} else {
+			// Transaction exists, use it
+			tx = existingTx
+		}
+
+		// Handle logo upload
+		logoFile, err := c.FormFile("logo")
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "logo file is required"})
 			return
 		}
 
+		// Save logo file
+		logoPath, err := fs.SaveImage(logoFile, "logos")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save logo: " + err.Error()})
+			return
+		}
+		app.LogoPath = logoPath
+
 		// Create the app first to get an ID
 		if err := db.Create(&app).Error; err != nil {
+			// Clean up the logo file if app creation fails
+			_ = fs.DeleteImage(logoPath)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create app"})
 			return
 		}
@@ -133,51 +175,54 @@ func CreateApp(db *DB, cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		// Process mockup images
-		form, _ := c.MultipartForm()
-		files := form.File["mockupImages"]
-		for i, file := range files {
-			// Open the uploaded file
-			src, err := file.Open()
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to open uploaded file"})
-				return
-			}
-			defer src.Close()
+		// Handle mockup images
+		form := c.Request.MultipartForm
+		if form != nil && form.File != nil {
+			var mockupImages []AppImage
 
-			// Read the file content
-			fileBytes, err := io.ReadAll(src)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read uploaded file"})
-				return
+			// Get all mockup image files
+			for key, files := range form.File {
+				if strings.HasPrefix(key, "mockups[") && len(files) > 0 {
+					// Extract index from key (e.g., "mockups[0]" -> 0)
+					indexStr := strings.TrimPrefix(strings.TrimSuffix(key, "]"), "mockups[")
+					if index, err := strconv.Atoi(indexStr); err == nil {
+						fileHeader := files[0]
+
+						// Save the mockup image
+						imagePath, err := fs.SaveImage(fileHeader, "mockups")
+						if err != nil {
+							c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save mockup image: " + err.Error()})
+							return
+						}
+
+						// Get corresponding description
+						var description string
+						if descKey := fmt.Sprintf("descriptions[%d]", index); form.Value != nil {
+							if values := form.Value[descKey]; len(values) > 0 {
+								description = values[0]
+							}
+						}
+
+						// Create mockup image record
+						mockupImage := AppImage{
+							AppID:       app.ID,
+							Filename:    fileHeader.Filename,
+							ImagePath:   imagePath,
+							Description: description,
+							Order:       index,
+						}
+
+						mockupImages = append(mockupImages, mockupImage)
+					}
+				}
 			}
 
-			// Get content type
-			contentType := file.Header.Get("Content-Type")
-			if contentType == "" {
-				// Try to detect content type if not provided
-				contentType = http.DetectContentType(fileBytes)
-			}
-
-			// Validate that it's an image
-			if !strings.HasPrefix(contentType, "image/") {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "uploaded file is not an image"})
-				return
-			}
-
-			// Create AppImage record
-			appImage := AppImage{
-				AppID:       app.ID,
-				ImageData:   fileBytes,
-				ContentType: contentType,
-				Filename:    file.Filename,
-				Order:       i, // Use the upload order as display order
-				Description: c.Request.FormValue(fmt.Sprintf("imageDescription[%d]", i)),
-			}
-
-			if err := db.Create(&appImage).Error; err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save image"})
-				return
+			// Save all mockup images in a transaction
+			if len(mockupImages) > 0 {
+				if err := db.Create(&mockupImages).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save mockup images"})
+					return
+				}
 			}
 		}
 
@@ -249,8 +294,11 @@ func HideApp(db *DB) gin.HandlerFunc {
 }
 
 // GetAppImage returns a specific mockup image by ID
-func GetAppImage(db *DB) gin.HandlerFunc {
+func GetAppImage(db *DB, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Initialize file store
+		fs := filestore.New(cfg)
+
 		imageID := c.Param("id")
 		if imageID == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "image ID is required"})
@@ -263,12 +311,12 @@ func GetAppImage(db *DB) gin.HandlerFunc {
 			return
 		}
 
-		// Set appropriate content type header
-		c.Header("Content-Type", image.ContentType)
+		// Get the full path to the image
+		imagePath := fs.GetImagePath(image.ImagePath)
+
+		// Serve the file
 		c.Header("Content-Disposition", fmt.Sprintf("inline; filename=%s", image.Filename))
-		
-		// Return the image data directly
-		c.Data(http.StatusOK, image.ContentType, image.ImageData)
+		c.File(imagePath)
 	}
 }
 
@@ -282,26 +330,11 @@ func GetApp(db *DB) gin.HandlerFunc {
 		}
 
 		var app App
-		
-		// Check if we should include mockup images
-		includeImages := c.Query("includeImages") == "true"
-		query := db.Model(&App{})
-		
-		if includeImages {
-			query = query.Preload("MockupImages")
-		}
-		
+		query := db.Model(&App{}).Preload("MockupImages")
+
 		if err := query.First(&app, appID).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "app not found"})
 			return
-		}
-
-		// If images are included but we don't want to send the binary data
-		if includeImages && c.Query("imagesMetadataOnly") == "true" {
-			for i := range app.MockupImages {
-				// Keep metadata but remove the actual image data
-				app.MockupImages[i].ImageData = nil
-			}
 		}
 
 		c.JSON(http.StatusOK, app)

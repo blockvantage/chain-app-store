@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-# Copy the rest of the files
+# Copy all files
 COPY . .
 
 # Ensure TypeScript is properly installed

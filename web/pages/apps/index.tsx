@@ -310,16 +310,15 @@ export default function Apps() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
               {(apps || []).map((app, index) => (
-                <Link key={safe.get(app, 'id', `app-${index}`)} href={`/apps/${safe.get(app, 'id', `app-${index}`)}`} className="group">
+                <Link key={safe.get(app, 'ID', `app-${index}`)} href={`/apps/${safe.get(app, 'ID', `app-${index}`)}`} className="group">
                   <div className="app-card h-full flex flex-col animate-apple-scale-in" style={{ animationDelay: `${0.1 * index}s` }}>
                     <div className="p-5 flex items-center">
                       <div className="w-16 h-16 relative mr-4 overflow-hidden rounded-apple-md shadow-apple-sm group-hover:shadow-apple transition-all duration-300">
-                        {safe.get(app, 'logoUrl', null) ? (
-                          <Image 
-                            src={safe.get(app, 'logoUrl', '/placeholder.png')} 
+                        {safe.get(app, 'logoPath', null) ? (
+                          <img 
+                            src={`/api/images/${safe.get(app, 'logoPath', '')}`}
                             alt={safe.get(app, 'name', 'App')} 
-                            fill 
-                            className="object-cover"
+                            className="w-full h-full object-cover"
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 text-2xl font-bold">

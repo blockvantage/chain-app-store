@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { useWallet } from '../hooks/useWallet';
 import { useConfig } from '../hooks/useConfig';
-import { createApp, api } from '../utils/api';
-import { connectWallet, getWalletState, signMessage } from '../utils/wallet';
+import { createApp } from '../utils/api';
 import Layout from '../components/Layout';
 
 export default function SubmitApp() {
@@ -14,52 +12,66 @@ export default function SubmitApp() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    logoUrl: '',
     contractAddresses: [''],
     repoUrl: '',
     websiteUrl: '',
     tags: [''],
     txHash: '',
-    // Social media links
+    // Social media links (optional)
     twitterUrl: '',
     discordUrl: '',
     telegramUrl: '',
     mediumUrl: '',
     githubUrl: '',
   });
+
+  // Validate URL format
+  const isValidUrl = (url: string) => {
+    if (!url) return true; // Empty URLs are valid (optional fields)
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  
+  // State for logo file
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string>('');
   
   // State for mockup images
   const [mockupImages, setMockupImages] = useState<File[]>([]);
   const [imageDescriptions, setImageDescriptions] = useState<string[]>([]);
   
-  const [walletConnected, setWalletConnected] = useState(false);
-  const [walletAddress, setWalletAddress] = useState('');
+  // const [walletConnected, setWalletConnected] = useState(false);
+  // const [walletAddress, setWalletAddress] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  useEffect(() => {
-    const checkWallet = () => {
-      const state = getWalletState();
-      setWalletConnected(state.connected);
-      if (state.address) {
-        setWalletAddress(state.address);
-      }
-    };
+  // useEffect(() => {
+  //   const checkWallet = () => {
+  //     const state = getWalletState();
+  //     setWalletConnected(state.connected);
+  //     if (state.address) {
+  //       setWalletAddress(state.address);
+  //     }
+  //   };
     
-    checkWallet();
-  }, []);
+  //   checkWallet();
+  // }, []);
 
-  const handleConnectWallet = async () => {
-    try {
-      const state = await connectWallet();
-      setWalletConnected(true);
-      setWalletAddress(state.address || '');
-    } catch (err) {
-      console.error('Error connecting wallet:', err);
-      setError('Failed to connect wallet. Please make sure you have MetaMask installed.');
-    }
-  };
+  // const handleConnectWallet = async () => {
+  //   try {
+  //     const state = await connectWallet();
+  //     setWalletConnected(true);
+  //     setWalletAddress(state.address || '');
+  //   } catch (err) {
+  //     console.error('Error connecting wallet:', err);
+  //     setError('Failed to connect wallet. Please make sure you have MetaMask installed.');
+  //   }
+  // };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -128,58 +140,48 @@ export default function SubmitApp() {
     setSubmitting(true);
 
     try {
-      // Verify wallet connection
-      if (!walletConnected) {
-        throw new Error('Please connect your wallet first');
+      // Validate required fields
+      if (!formData.name.trim()) throw new Error('App name is required');
+      if (!formData.description.trim()) throw new Error('Description is required');
+      if (!logoFile) throw new Error('App logo is required');
+      if (!formData.repoUrl.trim()) throw new Error('Repository URL is required');
+      
+      // Validate URLs
+      const urlFields = {
+        'Repository URL': formData.repoUrl,
+        'Website URL': formData.websiteUrl,
+        'Twitter URL': formData.twitterUrl,
+        'Discord URL': formData.discordUrl,
+        'Telegram URL': formData.telegramUrl,
+        'Medium URL': formData.mediumUrl,
+        'GitHub URL': formData.githubUrl
+      };
+
+      for (const [fieldName, url] of Object.entries(urlFields)) {
+        if (url && !isValidUrl(url)) {
+          throw new Error(`Invalid ${fieldName} format`);
+        }
       }
 
-      // Sign message with wallet
-      const message = `Submit app ${formData.name} to Chain App Store`;
-      const signature = await signMessage(message);
-      
-      if (!signature) {
-        throw new Error('Failed to sign message with wallet');
-      }
-
-      // Create form data for multipart submission
-      const formDataObj = new FormData();
-      
-      // Add app data as JSON
-      formDataObj.append('appData', JSON.stringify({
+      // Prepare app data by filtering empty contract addresses and tags
+      const appData = {
         ...formData,
-        developerAddress: walletAddress,
-      }));
-      
-      // Add mockup images
-      mockupImages.forEach((image, index) => {
-        formDataObj.append('mockupImages', image);
-        formDataObj.append(`imageDescription[${index}]`, imageDescriptions[index] || '');
-      });
+        contractAddresses: formData.contractAddresses.filter(addr => addr.trim()),
+        tags: formData.tags.filter(tag => tag.trim())
+      };
 
-      // Submit app to API with multipart form data
-      const response = await fetch(`${api}/apps`, {
-        method: 'POST',
-        headers: {
-          'X-Signature': signature
-        },
-        body: formDataObj
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to submit app');
-      }
-      
+      // Submit using the API utility
+      await createApp(appData, logoFile, mockupImages, imageDescriptions);
+
       setSuccess(true);
       
       // Redirect to app page after a delay
       setTimeout(() => {
         router.push('/apps');
       }, 2000);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error submitting app:', err);
-      setError('Failed to submit app. Please try again later.');
+      setError(err.response?.data?.error || err.message || 'Failed to submit app. Please try again later.');
     } finally {
       setSubmitting(false);
     }
@@ -211,7 +213,7 @@ export default function SubmitApp() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-8">
-            {/* Wallet Connection */}
+            {/* Wallet Connection - Commented out
             <div className="bg-neutral-50 dark:bg-neutral-800/40 p-6 rounded-apple-lg shadow-apple-sm border border-neutral-100 dark:border-neutral-700">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
@@ -246,6 +248,7 @@ export default function SubmitApp() {
                 )}
               </div>
             </div>
+            */}
             
             {/* App Details */}
             <div className="bg-neutral-50 dark:bg-neutral-800/40 p-6 rounded-apple-lg shadow-apple-sm border border-neutral-100 dark:border-neutral-700">
@@ -288,19 +291,61 @@ export default function SubmitApp() {
                 </div>
                 
                 <div>
-                  <label htmlFor="logoUrl" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-                    Logo URL *
+                  <label htmlFor="logo" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    App Logo *
                   </label>
-                  <input
-                    type="url"
-                    id="logoUrl"
-                    name="logoUrl"
-                    value={formData.logoUrl}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-4 py-2 rounded-apple-md border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-all duration-150"
-                    placeholder="https://example.com/logo.png"
-                  />
+                  <div className="mt-1 flex items-center space-x-4">
+                    {logoPreview && (
+                      <div className="relative w-16 h-16">
+                        <img
+                          src={logoPreview}
+                          alt="Logo preview"
+                          className="w-16 h-16 object-cover rounded-lg"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLogoFile(null);
+                            setLogoPreview('');
+                          }}
+                          className="absolute -top-2 -right-2 bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400 rounded-full p-1 hover:bg-red-200 dark:hover:bg-red-800 transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+                    <label className="flex-1">
+                      <div className="flex items-center justify-center w-full h-32 px-4 transition bg-white dark:bg-neutral-800 border-2 border-neutral-300 dark:border-neutral-600 border-dashed rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700/50 cursor-pointer">
+                        <div className="flex flex-col items-center space-y-2">
+                          <svg className="w-8 h-8 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                          </svg>
+                          <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                            {logoFile ? 'Change logo' : 'Upload app logo'}
+                          </p>
+                          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                            PNG, JPG or GIF (max 2MB)
+                          </p>
+                        </div>
+                        <input
+                          type="file"
+                          id="logo"
+                          accept="image/*"
+                          
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setLogoFile(file);
+                              setLogoPreview(URL.createObjectURL(file));
+                            }
+                          }}
+                        />
+                      </div>
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -323,7 +368,7 @@ export default function SubmitApp() {
                       type="text"
                       value={address}
                       onChange={(e) => handleArrayInputChange(index, 'contractAddresses', e.target.value)}
-                      required
+                      
                       className="flex-grow px-4 py-2 rounded-apple-md border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-all duration-150"
                       placeholder="0x..."
                     />
@@ -376,7 +421,7 @@ export default function SubmitApp() {
                       name="repoUrl"
                       value={formData.repoUrl}
                       onChange={handleInputChange}
-                      required
+                      
                       className="flex-grow px-4 py-2 rounded-r-apple-md border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-all duration-150"
                       placeholder="https://github.com/username/repo"
                     />
@@ -399,7 +444,7 @@ export default function SubmitApp() {
                       name="websiteUrl"
                       value={formData.websiteUrl}
                       onChange={handleInputChange}
-                      required
+                      
                       className="flex-grow px-4 py-2 rounded-r-apple-md border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-all duration-150"
                       placeholder="https://example.com"
                     />
@@ -426,7 +471,7 @@ export default function SubmitApp() {
                       type="text"
                       value={tag}
                       onChange={(e) => handleArrayInputChange(index, 'tags', e.target.value)}
-                      required
+                      
                       className="flex-grow px-4 py-2 rounded-apple-md border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-all duration-150"
                       placeholder="DeFi, NFT, Gaming, etc."
                     />
@@ -697,8 +742,8 @@ export default function SubmitApp() {
             <div className="flex justify-end pt-4">
               <button
                 type="submit"
-                disabled={submitting || !walletConnected}
-                className={`inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-apple-md shadow-apple-sm text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-150 ${(submitting || !walletConnected) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                disabled={submitting}
+                className={`inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-apple-md shadow-apple-sm text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-150 ${submitting ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 {submitting ? (
                   <>

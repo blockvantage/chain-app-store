@@ -1,3 +1,6 @@
+// In Docker, we'll use environment variables
+const backendUrl = process.env.BACKEND_URL || 'http://localhost:8080';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -9,7 +12,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: process.env.BACKEND_URL || 'http://backend:8080/:path*',
+        destination: `${backendUrl}/:path*`,
       },
     ];
   },

@@ -10,27 +10,6 @@ A modular, plugin-based application store for blockchain ecosystems. This platfo
 - **Wallet Integration**: Connect with MetaMask and other Web3 wallets
 - **Docker Deployment**: Easy setup with Docker Compose
 
-## Project Structure
-
-```
-chain-app-store/
-├── backend/             # Go backend API server
-│   ├── plugins/         # Plugin modules (reviews, boosting, poe)
-│   ├── storage/         # Database models and handlers
-│   ├── utils/           # Utility functions
-│   └── main.go          # Entry point
-├── web/                 # Next.js frontend
-│   ├── components/      # Reusable UI components
-│   ├── hooks/           # Custom React hooks
-│   ├── pages/           # Page components and API routes
-│   ├── public/          # Static assets
-│   ├── styles/          # CSS and styling
-│   └── utils/           # Frontend utilities
-├── init/                # Initialization container
-├── config.json.sample   # Sample configuration
-└── docker-compose.yml   # Docker Compose configuration
-```
-
 ## Prerequisites
 
 - Docker and Docker Compose

@@ -17,6 +17,8 @@ type Config struct {
 	EnableModules   ModulesConfig     `json:"enableModules"`
 	AdminWallets    []string          `json:"adminWallets"`
 	ListingFee      ListingFeeConfig  `json:"listingFee"`
+	BackendUrl      string            `json:"backendUrl"`
+	Storage         StorageConfig     `json:"storage"`
 }
 
 type LogoConfig struct {

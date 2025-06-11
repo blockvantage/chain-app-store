@@ -2,16 +2,18 @@ package main
 
 import (
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 
-	"github.com/chain-app-store/backend/config"
-	"github.com/chain-app-store/backend/plugins/boosting"
-	"github.com/chain-app-store/backend/plugins/poe"
-	"github.com/chain-app-store/backend/plugins/reviews"
-	"github.com/chain-app-store/backend/storage"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+
+	"github.com/blockvantage/chain-app-store/backend/config"
+	"github.com/blockvantage/chain-app-store/backend/plugins/boosting"
+	"github.com/blockvantage/chain-app-store/backend/plugins/poe"
+	"github.com/blockvantage/chain-app-store/backend/plugins/reviews"
+	"github.com/blockvantage/chain-app-store/backend/storage"
 )
 
 func main() {
@@ -52,16 +54,21 @@ func main() {
 
 	// Initialize router
 	router := gin.Default()
-	
+
 	// Configure CORS middleware
-	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000", "http://web:3000"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Signature"},
-		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: true,
-		MaxAge:           12 * 60 * 60,
-	}))
+	router.Use(cors.Default())
+	// Enable all origins for development
+	router.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+		c.Next()
+	})
 
 	// Register core routes
 	registerCoreRoutes(router, db, cfg)
@@ -84,21 +91,19 @@ func main() {
 func registerCoreRoutes(router *gin.Engine, db *storage.DB, cfg *config.Config) {
 	// Health check
 	router.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok"})
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	// Config endpoint
+	// Get public config
 	router.GET("/config", func(c *gin.Context) {
-		c.JSON(200, cfg.GetPublicConfig())
+		c.JSON(http.StatusOK, cfg.GetPublicConfig())
 	})
 
 	// App routes
 	router.GET("/apps", storage.GetApps(db))
 	router.GET("/apps/:id", storage.GetApp(db))
 	router.POST("/apps", storage.CreateApp(db, cfg))
-	
-	// Image routes
-	router.GET("/images/:id", storage.GetAppImage(db))
+	router.Static("/images", cfg.Storage.ImagesPath)
 
 	// Admin routes with authentication middleware
 	admin := router.Group("/admin")

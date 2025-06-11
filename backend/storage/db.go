@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/chain-app-store/backend/config"
+	"github.com/blockvantage/chain-app-store/backend/config"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -33,13 +33,9 @@ func InitDB(dbPath string) (*DB, error) {
 func RunMigrations(db *DB, cfg *config.Config) error {
 	log.Println("Running database migrations...")
 	
-	// Migrate base tables
-	if err := db.AutoMigrate(
-		&App{},
-		&Transaction{},
-		&Flag{},
-	); err != nil {
-		return fmt.Errorf("failed to migrate base tables: %w", err)
+	// Auto-migrate the schema
+	if err := db.AutoMigrate(&App{}, &Transaction{}, &AppImage{}, &Flag{}); err != nil {
+		return fmt.Errorf("failed to migrate database: %w", err)
 	}
 
 	// Migrate plugin-specific tables based on enabled modules

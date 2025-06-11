@@ -5,11 +5,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/chain-app-store/backend/config"
-	"github.com/chain-app-store/backend/storage"
-	"github.com/chain-app-store/backend/utils"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+
+	"github.com/blockvantage/chain-app-store/backend/config"
+	"github.com/blockvantage/chain-app-store/backend/storage"
+	"github.com/blockvantage/chain-app-store/backend/utils"
 )
 
 // Plugin implements the Plugin interface for boosting functionality

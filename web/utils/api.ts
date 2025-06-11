@@ -2,24 +2,29 @@ import axios from 'axios';
 
 // Use relative URLs for API calls from the browser
 // This will be proxied through Next.js API routes
-const apiBaseUrl = '/api';
+const apiBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
 
 console.log('API Base URL:', apiBaseUrl);
 
 // Create an axios instance with default config
 export const api = axios.create({
-  baseURL: apiBaseUrl,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  baseURL: apiBaseUrl
 });
 
 // App interfaces
-export interface App {
+export interface AppImage {
   id: number;
+  filename: string;
+  imagePath: string;
+  description?: string;
+  order: number;
+}
+
+export interface App {
+  ID: number;
   name: string;
   description: string;
-  logoUrl: string;
+  logoPath: string;
   contractAddresses: string[];
   developerAddress: string;
   repoUrl: string;
@@ -30,6 +35,12 @@ export interface App {
   txHash: string;
   createdAt: string;
   updatedAt: string;
+  mockupImages?: AppImage[];
+  twitterUrl?: string;
+  discordUrl?: string;
+  telegramUrl?: string;
+  mediumUrl?: string;
+  githubUrl?: string;
 }
 
 export interface AppListResponse {
@@ -114,8 +125,23 @@ export const getApp = async (id: number) => {
   return response.data;
 };
 
-export const createApp = async (app: Omit<App, 'id' | 'createdAt' | 'updatedAt'>) => {
-  const response = await api.post<App>('/apps', app);
+export async function createApp(appData: any, logo: File, mockups?: File[], descriptions?: string[]) {
+  const formData = new FormData();
+  formData.append('appData', JSON.stringify(appData));
+  formData.append('logo', logo);
+
+  if (mockups && mockups.length > 0) {
+    mockups.forEach((mockup, index) => {
+      formData.append(`mockups[${index}]`, mockup);
+      formData.append(`descriptions[${index}]`, descriptions?.[index] || '');
+    });
+  }
+
+  const response = await api.post<App>('/apps', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
   return response.data;
 };
 

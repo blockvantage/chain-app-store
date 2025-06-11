@@ -8,9 +8,16 @@ services:
     volumes:
       - ./config.json:/app/config.json:ro
       - config-out:/shared
+      - sqlite-data:/data:rw
     environment:
       - CONFIG_PATH=/app/config.json
       - SHARED_PATH=/shared
+    command: >
+      sh -c "cp /app/config.json /shared/config.json &&
+             mkdir -p /data &&
+             touch /data/appstore.db &&
+             chown -R nobody:nobody /data &&
+             chmod -R 777 /data"
 
   backend:
     build:
@@ -22,7 +29,8 @@ services:
       - init
     volumes:
       - config-out:/config:ro
-      - sqlite-data:/data
+      - sqlite-data:/data:rw
+      - image-data:/data/images:rw
     environment:
       - CONFIG_PATH=/config/config.json
       - DB_PATH=/data/appstore.db
@@ -39,10 +47,10 @@ services:
       - config-out:/config:ro
     environment:
       - CONFIG_PATH=/config/config.json
-      - BACKEND_URL=http://backend:8080
-      - NEXT_PUBLIC_API_URL=http://backend:8080
+      - NEXT_PUBLIC_BACKEND_URL=http://localhost:8080
       - NODE_ENV=production
 
 volumes:
   config-out:
   sqlite-data:
+  image-data:

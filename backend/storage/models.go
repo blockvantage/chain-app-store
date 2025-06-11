@@ -11,18 +11,16 @@ type App struct {
 	gorm.Model
 	Name          string `json:"name" gorm:"index"`
 	Description   string `json:"description"`
-	LogoURL       string `json:"logoUrl"`
 	ContractAddresses []string `json:"contractAddresses" gorm:"serializer:json"`
-	DeveloperAddress string `json:"developerAddress" gorm:"index"`
 	RepoURL       string `json:"repoUrl"`
 	WebsiteURL    string `json:"websiteUrl"`
 	Tags          []string `json:"tags" gorm:"serializer:json"`
+	TxHash        string `json:"txHash"` // Transaction hash for listing fee
+	DeveloperAddress string `json:"developerAddress" gorm:"index"`
 	Featured      bool `json:"featured" gorm:"index"`
 	Hidden        bool `json:"hidden" gorm:"index"`
-	TxHash        string `json:"txHash"` // Transaction hash for listing fee
-	
-	// TODO: Replace binary storage with cloud storage solution in production
-	MockupImages []AppImage `json:"mockupImages" gorm:"foreignKey:AppID"`
+	LogoPath      string `json:"logoPath"`
+	MockupImages  []AppImage `json:"mockupImages" gorm:"foreignKey:AppID"`
 	
 	// Social media links
 	TwitterURL   string `json:"twitterUrl"`
@@ -36,9 +34,8 @@ type App struct {
 type AppImage struct {
 	gorm.Model
 	AppID       uint   `json:"appId" gorm:"index"`
-	ImageData   []byte `json:"imageData" gorm:"type:longblob"` // Binary image data
-	ContentType string `json:"contentType"`                     // MIME type (e.g., image/jpeg, image/png)
-	Filename    string `json:"filename"`                        // Original filename
+	Filename    string `json:"filename"`
+	ImagePath   string `json:"imagePath"`
 	Description string `json:"description"`                      // Optional description of the image
 	Order       int    `json:"order"`                           // Display order
 }
