@@ -169,7 +169,7 @@ export default function AppDetail() {
             <div className="w-28 h-28 md:w-32 md:h-32 relative overflow-hidden rounded-apple-lg shadow-apple">
               {safe.get(app, 'logoPath', null) ? (
                 <img 
-                  src={safe.get(app, 'logoPath', '') ? `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'}/api/images/${safe.get(app, 'logoPath', '')}` : '/placeholder.png'}
+                  src={safe.get(app, 'logoPath', '') ? `${safe.get(config, 'backendUrl', '')}/api/images/${safe.get(app, 'logoPath', '')}` : '/placeholder.png'}
                   alt={safe.get(app, 'name', 'App')} 
                   className="w-full h-full object-cover"
                 />
@@ -368,7 +368,7 @@ export default function AppDetail() {
                   {/* Main Image */}
                   <div className="relative aspect-[16/9] rounded-apple-lg overflow-hidden">
                     <img 
-                      src={app.mockupImages[mockupImageIndex].imagePath ? `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'}/api/images/${app.mockupImages[mockupImageIndex].imagePath}` : '/placeholder.png'}
+                      src={app.mockupImages[mockupImageIndex].imagePath ? `${safe.get(config, 'backendUrl', '')}/api/images/${app.mockupImages[mockupImageIndex].imagePath}` : '/placeholder.png'}
                       alt={app.mockupImages[mockupImageIndex].description || `${app.name} screenshot ${mockupImageIndex + 1}`}
                       className="w-full h-full object-cover"
                     />
@@ -410,7 +410,7 @@ export default function AppDetail() {
                         className={`relative flex-none w-24 aspect-[16/9] rounded-apple-md overflow-hidden ${index === mockupImageIndex ? 'ring-2 ring-primary-600' : ''}`}
                       >
                         <img 
-                          src={image.imagePath ? `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'}/api/images/${image.imagePath}` : '/placeholder.png'}
+                          src={image.imagePath ? `${safe.get(config, 'backendUrl', '')}/api/images/${image.imagePath}` : '/placeholder.png'}
                           alt={image.description || `${app.name} screenshot ${index + 1}`}
                           className="w-full h-full object-cover"
                         />

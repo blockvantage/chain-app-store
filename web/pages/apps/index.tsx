@@ -316,7 +316,7 @@ export default function Apps() {
                       <div className="w-16 h-16 relative mr-4 overflow-hidden rounded-apple-md shadow-apple-sm group-hover:shadow-apple transition-all duration-300">
               {safe.get(app, 'logoPath', null) ? (
                 <img 
-                  src={safe.get(app, 'logoPath', '') ? `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'}/api/images/${safe.get(app, 'logoPath', '')}` : '/placeholder.png'}
+                  src={safe.get(app, 'logoPath', '') ? `${safe.get(config, 'backendUrl', '')}/api/images/${safe.get(app, 'logoPath', '')}` : '/placeholder.png'}
                   alt={safe.get(app, 'name', 'App')} 
                   className="w-full h-full object-cover"
                 />
